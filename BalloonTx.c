@@ -5,6 +5,9 @@
 #include <stdlib.h>
 #include <wiringPi.h>
 #include <wiringPiSPI.h>
+#include <fcntl.h>
+#include <sys/ioctl.h>
+#include <linux/spi/spidev.h>
 
 
 #define REG_FIFO                    0x00 	//okay
@@ -85,6 +88,7 @@ const int dio0pin = 29;
 const int dio3pin = 31;
 const int dio4pin = 32;
 const int dio5pin = 33; 
+struct spi_ioc_transfer spitx;
 
 void setup() {
   printf("Balloon Initializing...");
@@ -93,9 +97,46 @@ void setup() {
 }
 
 int running() {
-
+  spitx.tx_buf(0x0D | 
+}
+/*
+ readRegister(byte addr)
+{
+  select();
+  SPI.transfer(addr & 0x7F);
+  byte regval = SPI.transfer(0);
+  unselect();
+  return regval;
 }
 
+/////////////////////////////////////
+//    Method:   Write Register
+//////////////////////////////////////
+
+void writeRegister(byte addr, byte value)
+{
+  select();
+  SPI.transfer(addr | 0x80); // OR address with 10000000 to indicate write enable;
+  SPI.transfer(value);
+  unselect();
+}
+
+/////////////////////////////////////
+//    Method:   Select Transceiver
+//////////////////////////////////////
+void select() 
+{
+  digitalWrite(_slaveSelectPin, LOW);
+}
+
+/////////////////////////////////////
+//    Method:   UNSelect Transceiver
+//////////////////////////////////////
+void unselect() 
+{
+  digitalWrite(_slaveSelectPin, HIGH);
+}
+*/
 int main(void) { //int argc, char *argv[]
   setup();  
   while (1){
@@ -120,6 +161,7 @@ void setRFM98W(void)
   pinModeGpio(dio5pin, INPUT);
   //setInterrupts();
   //SPI.begin();
+  wiringPiSPISetup(0, 1000000); //Set to 1Mhz : should be able to go higher
   //SetFSKMod();
   //testCommunication();
   //Receiver_Startup();
