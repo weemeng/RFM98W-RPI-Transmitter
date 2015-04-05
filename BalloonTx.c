@@ -294,7 +294,9 @@ void CheckRx()
 	printf("Case 3 Triggered\n");
 	//check CRC okay, Reset and load to SD card
 	for (k = 0; k < Bytes; k++) {
-	  printf(Message[k]);
+	  printf("%d", Message[k]);
+	  if (k == Bytes-1)
+		printf("\n");
 	}
 	printf("\n");
 	Bytes = 0;
