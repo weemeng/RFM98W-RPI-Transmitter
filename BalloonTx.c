@@ -91,15 +91,48 @@
 
 const int SSpin = 24; 
 const int dio0pin = 29;
-const int dio1pin = ; //get this done 
-const int dio2pin = ;
+const int dio1pin = 22; //get this done 
+const int dio2pin = 23;
 const int dio3pin = 31;
 const int dio4pin = 32;
 const int dio5pin = 33; 
-unsigned long Message[] = {0xABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF1234567890};
+unsigned long Message[32] = {	0xABCDEF12, //4 bytes = 1 word
+								0x3456789A,
+								0xBCDEF123,
+								0x456789AB,
+								0xCDEF1234,
+								0x56789ABC,
+								0xDEF12345,
+								0x6789ABCD,
+								0xEF123456,
+								0x789ABCDE,
+								0xF1234567,
+								0x89ABCDEF,
+								0x12345678,
+								0x9ABCDEF1,
+								0x23456789,
+								0xABCDEF12,
+								0x3456789A,
+								0xBCDEF123,
+								0x456789AB,
+								0xCDEF1234,
+								0x56789ABC,
+								0xDEF12345,
+								0x6789ABCD,
+								0xEF123456,
+								0x789ABCDE,
+								0xF1234567,
+								0x89ABCDEF,
+								0x12345678,
+								0x9ABCDEF1,
+								0x23456789,
+								0xABCDEF12,
+								0x34567890 };
+
 uint8_t currentMode = 0x09;
+uint8_t nextByte = 0x00;
 //boolean reading = 0;
-int CurrentCount = 0, Bytes, state; 
+int CurrentCount = 0, Word=0, Byte=0, state; 
 
 void spi_send_byte(uint8_t Data1, uint8_t Data2) { 
     digitalWrite(24, LOW);
@@ -117,11 +150,26 @@ uint8_t spi_rcv_data(uint8_t Data) {
 	digitalWrite(24, HIGH);
 	return rxbuf[0];
 }
+uint8_t getByte() {
+	uint8_t output;
+	if (Byte == 4) {
+		Byte = 0;
+		Word++;
+	}
+	if (Word == 32)
+		printf("New Message");
+	}
+	output = (Message[Word] >> ((3-Byte)*8));	//take MSB
+	Byte++;
+	return output;
+}
 void dio1interrupt () { 	//FIFO Threshold FALLING
+  
   printf("Fifo Threshold\n");
   while (digitalRead(dio2pin) == 0) {
-	if (CurrentCount < 256) { //push it in
-		spi_send_byte(0x00, (uint8_t) Message[CurrentCount]);
+	if (CurrentCount < 256) { //push it in    
+		nextByte = getByte();
+		spi_send_byte(0x00, nextByte);
 		CurrentCount++;
 	}
 	else {
@@ -286,16 +334,16 @@ void Tx() {
 	//wait for interrupt trigger
 	//interrupt should make me skip this code
 	while (digitalRead(dio2pin) == 0) {
-		if (CurrentCount < 256) { //push it in
-			spi_send_byte(0x00, (uint8_t) Message[CurrentCount]);
-			CurrentCount++;
-		}
-		else {
-			printf("no more message.. program shouldn't come here\n");//shouldn't come here
-			break;
-	    }
+	if (CurrentCount < 256) { //push it in    
+		nextByte = getByte();
+		spi_send_byte(0x00, nextByte);
+		CurrentCount++;
 	}
-	printf("state transition from 4 to 1"); 
+	else {
+		printf("no more message.. program shouldn't come here\n");//shouldn't come here
+		break;
+	}
+  }printf("state transition from 4 to 1"); 
 	break;
   case 5:
 	printf("Case 5 Triggered\n");
@@ -326,6 +374,8 @@ void setRFM98W(void)
 	int pisetupbit;
 	pinMode( SSpin, OUTPUT);
 	pinMode(dio0pin, INPUT);
+	pinMode(dio1pin, INPUT);
+	pinMode(dio2pin, INPUT);
 	pinMode(dio3pin, INPUT);
 	pinMode(dio4pin, INPUT);
 	pinMode(dio5pin, INPUT);
@@ -348,5 +398,5 @@ int main(void) { //int argc, char *argv[]
 	while (1){
 		Tx();   
 	}
-	return;
+	return 0;
 }
