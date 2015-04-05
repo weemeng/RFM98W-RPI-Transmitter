@@ -95,9 +95,27 @@ const int dio3pin = 31;
 const int dio4pin = 32;
 const int dio5pin = 33; 
 uint8_t currentMode = 0x09;
-boolean reading = 0;
+//boolean reading = 0;
 int CurrentCount = 0, Bytes, state; 
 
+
+
+void spi_send_byte(uint8_t Data1, uint8_t Data2) {
+    digitalWrite(24, LOW);
+	uint8_t txbuf[2];
+    txbuf[0] = (0x80 | Data1);
+	txbuf[1] = Data2;
+    wiringPiSPIDataRW(0, txbuf, 2);
+	digitalWrite(24, HIGH);
+}
+uint8_t spi_rcv_data(uint8_t Data) {
+    digitalWrite(24, LOW);
+	uint8_t rxbuf[1];
+    rxbuf[0] = Data;
+    wiringPiSPIDataRW(0, rxbuf, 1);
+	digitalWrite(24, HIGH);
+	return rxbuf[0];
+}
 void dio0interrupt () {		//PAYLOAD READY on RISING
   printf("Payload Ready\n");
   if (state == 1) {
@@ -122,29 +140,12 @@ void dio3interrupt () { 	//FIFO EMPTY either low or high
 void dio4interrupt () { 	//Preamble Detect on RISING
   //might need to make a condition to avoid certain states
   printf("Preamble Detected");
-  writeRegister(REG_AFCFEI, 0x10);
+  spi_send_byte(REG_AFCFEI, 0x10);
 }
 void setInterrupts() {
   wiringPiISR (dio0pin, INT_EDGE_RISING,  &dio0interrupt);
   wiringPiISR (dio3pin, INT_EDGE_BOTH,  &dio3interrupt);
   wiringPiISR (dio4pin, INT_EDGE_RISING,  &dio4interrupt);
-}
-
-void spi_send_byte(uint8_t Data1, uint8_t Data2) {
-    digitalWrite(24, LOW);
-	uint8_t txbuf[2];
-    txbuf[0] = (0x80 | Data1);
-	txbuf[1] = Data2;
-    wiringPiSPIDataRW(0, txbuf, 2);
-	digitalWrite(24, HIGH);
-}
-uint8_t spi_rcv_data(uint8_t Data) {
-    digitalWrite(24, LOW);
-	uint8_t rxbuf[1];
-    rxbuf[0] = Data;
-    wiringPiSPIDataRW(0, rxbuf, 1);
-	digitalWrite(24, HIGH);
-	return rxbuf[0];
 }
 void setMode(uint8_t newMode)
 {
@@ -209,7 +210,7 @@ void SetFSKMod()
   printf("FSK Mode Set\n");
   uint8_t cntMode = spi_rcv_data(REG_OPMODE);
   printf("Mode = "); 
-  printf(cntMode);
+  printf("%d", cntMode);
   printf("\n"); 
   return;
 }
@@ -261,9 +262,10 @@ int receiveMessage(char *message, int i)
 void CheckRx()
 {
   char Message[256];
+  int k;
   //SentenceCount
   printf("Signal Strength is at "); 
-  printf(-(spi_rcv_data(REG_RSSIVALUE))/2);
+  printf("%d", -(spi_rcv_data(REG_RSSIVALUE))/2);
   printf("dBm\n"); 
   
   if  ((digitalRead(dio0pin) == 0) && (digitalRead(dio3pin) == 0))
@@ -291,7 +293,7 @@ void CheckRx()
   case 3:
 	printf("Case 3 Triggered\n");
 	//check CRC okay, Reset and load to SD card
-	for (int k = 0; k < Bytes; k++) {
+	for (k = 0; k < Bytes; k++) {
 	  printf(Message[k]);
 	}
 	printf("\n");
@@ -308,15 +310,6 @@ void CheckRx()
 	break;
   }
 
-}
-
-int main(void) { //int argc, char *argv[]
-	//int i, j, k;
-	wiringPiSetup();
-	while (1){
-		CheckRx();   
-	}
-	return;
 }
 void setRFM98W(void)
 {
@@ -339,52 +332,12 @@ void setup() {
   setRFM98W();
   printf("Setup Complete");
 }
-/*
-int readadc(adcnum)
-{
- uint8_t buff[3];
- int adc;
- if ((adcnum > 7) || (adcnum < 0))
-            return -1;
- buff[0] = 1;
- buff[1] = (8+adcnum)<<4;
- buff[2] = 0;
- wiringPiSPIDataRW(0, buff, 3);
- adc = ((buff[1]&3) << 8) + buff[2];
- return adc;
+int main(void) { //int argc, char *argv[]
+	//int i, j, k;
+	wiringPiSetup();
+	setup();
+	while (1){
+		CheckRx();   
+	}
+	return;
 }
-
-int main(int argc, char *argv[])
-{
- int i, chan;
- uint32_t x1, tot ;
- 
- printf ("SPI test program\n") ;
- // initialize the WiringPi API
- if (wiringPiSPISetup (0, 1000000) < 0)
-  return -1 ;
- 
- // get the channel to read, default to 0
- if (argc>1)
-  chan = atoi(argv[1]);
- else
-  chan = 0;
- 
- // run until killed with Ctrl-C
- while (1)
- {
-  tot = 0;
-  for (i=0; i<100; i++)
-  {
-   // read data and add to total
-   x1 = readadc(chan);
-   tot += x1;
-   delay(10);
-  }
-  // display the average value
-  printf("chan %d:  %d \n", chan, (tot/100)) ;
- }
-  
- return 0 ;
-}
-*/
