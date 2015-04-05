@@ -104,7 +104,42 @@ void setup() {
 int running() {
   //spitx.tx_buf(0x0D | 
 }
-
+void setInterrupts() {
+  wiringPiISR (dio0pin, INT_EDGE_RISING,  dio0interrupt());
+  wiringPiISR (dio3pin, INT_EDGE_BOTH,  dio3interrupt());
+  wiringPiISR (dio4pin, INT_EDGE_RISING,  dio4interrupt());
+  attachInterrupt(dio0, dio0interrupt, RISING);
+  attachInterrupt(dio3, dio3interrupt, CHANGE);
+  attachInterrupt(dio4, dio4interrupt, RISING);
+  //attachInterrupt(dio5, dio5interrupt, CHANGE);
+}
+void dio0interrupt () {		//PAYLOAD READY on RISING
+  printf("Payload Ready\n");
+  if (state == 1) {
+	state = 2;
+	printf("state transition from 1 to 2\n");
+  }
+}
+void dio3interrupt () { 	//FIFO EMPTY either low or high
+  printf("Fifo Empty\n");
+  if (digitalRead(dio0) == 0) { //Payload not Ready
+	state = 4;
+	waitforFIFO();
+  }
+}
+void waitforFIFO () {
+  while (digitalRead(dio3) == 1) {
+  }
+  printf("FINALLY, Thats my FIFO data..\n");
+  state = 3;
+  printf("state transition from 4 to 3\n");
+  
+}
+void dio4interrupt () { 	//Preamble Detect on RISING
+  //might need to make a condition to avoid certain states
+  printf("Preamble Detected");
+  writeRegister(REG_AFCFEI, 0x10);
+}
 /*
 void SPI_Send_Byte(unsigned char Data) {
     digitalWrite(24, LOW);
@@ -123,11 +158,11 @@ unsigned char SPI_Read_Byte(unsigned char Data) {
 	digitalWrite(24, HIGH);
 	return buf;
 }*/
-void spi_send_byte(uint16_t Data) {
+void spi_send_byte(uint8_t Data1, uint8_t Data2) {
     digitalWrite(24, LOW);
 	uint8_t txbuf[2];
-    txbuf[0] = (0x80 | Data>>8);
-	txbuf[1] = (0x00FF & Data);
+    txbuf[0] = (0x80 | Data1);
+	txbuf[1] = Data2;
     wiringPiSPIDataRW(0, txbuf, 2);
 	digitalWrite(24, HIGH);
 }
@@ -140,22 +175,6 @@ uint8_t spi_rcv_data(uint8_t Data) {
 	digitalWrite(24, HIGH);
 	return buf[0];
 }
-
-int main(void) { //int argc, char *argv[]
-	int i, j, k;
-	wiringPiSetup();
-	while (1){
-  
-  
-  
-  
-  
-  
-    
-	}
-	return;
-}
-
 void setRFM98W(void)
 {
 	// initialize the pins
@@ -164,42 +183,29 @@ void setRFM98W(void)
 	pinModeGpio(dio3pin, INPUT);
 	pinModeGpio(dio4pin, INPUT);
 	pinModeGpio(dio5pin, INPUT);
-	//setInterrupts();
+	setInterrupts();
 	if ((i = wiringPiSPISetup(0, 8000000))<0)
 		return -1;
 	SetFSKMod();
 	//testCommunication();
-	//Receiver_Startup();
+	Receiver_Startup();
 }
 
 void SetFSKMod()
 {
   printf("Setting FSK Mode\n");
   setMode(RF98M_MODE_SLEEP);
-  //spi_send_byte(REG_OPMODE,0x80);
-   
-  // frequency  
-  //setMode(RF98M_MODE_SLEEP);
-  /*
-  spi_send_byte(0x06, 0x6C);
-  spi_send_byte(0x07, 0x9C);
-  spi_send_byte(0x08, 0xCC);
-  
-  spi_send_byte(0x06, 0x6C);
-  spi_send_byte(0x07, 0x9C);
-  spi_send_byte(0x08, 0x8E);
-  */
   spi_send_byte(REG_BITRATEMSB, 0x00);
   spi_send_byte(REG_BITRATELSB, 0x68);
   spi_send_byte(REG_FRFMSB, 0x6C); //exact at 433Mhz
   spi_send_byte(REG_FRFMID, 0x40);
   spi_send_byte(REG_FRFLSB, 0x00);
    
-  Serial.println("FSK Mode Set");
+  printf("FSK Mode Set\n");
   
-  Serial.print("Mode = "); 
-  Serial.println(spi_rcv_data(REG_OPMODE));
-  
+  printf("Mode = "); 
+  printf(spi_rcv_data(REG_OPMODE));
+  printf("\n"); 
   return;
 }
 void setMode(uint8_t newMode)
@@ -210,32 +216,32 @@ void setMode(uint8_t newMode)
   switch (newMode) 
   {
     case RF98M_MODE_SLEEP:
-      Serial.println("Changing to Sleep Mode"); 
+      printf("Changing to Sleep Mode\n"); 
       spi_send_byte(REG_OPMODE, newMode);
       currentMode = newMode; 
       break;
     case RFM98_MODE_STANDBY:
-      Serial.println("Changing to Standby Mode");
+      printf("Changing to Standby Mode\n");
       spi_send_byte(REG_OPMODE, newMode);
       currentMode = newMode; 
       break;
 	case RFM98_MODE_FSTX:
-      Serial.println("Changing to FSTx Mode");
+      printf("Changing to FSTx Mode\n");
       spi_send_byte(REG_OPMODE, newMode);
       currentMode = newMode; 
       break;
 	case RFM98_MODE_TX:
-      Serial.println("Changing to Tx Mode");
+      printf("Changing to Tx Mode\n");
       spi_send_byte(REG_OPMODE, newMode);
       currentMode = newMode; 
       break;
 	case RFM98_MODE_FSRX:
-      Serial.println("Changing to FSRx Mode");
+      printf("Changing to FSRx Mode\n");
       spi_send_byte(REG_OPMODE, newMode);
       currentMode = newMode; 
       break;
 	case RFM98_MODE_RX:
-      Serial.println("Changing to Rx Mode");
+      printf("Changing to Rx Mode\n");
       spi_send_byte(REG_OPMODE, newMode);
       currentMode = newMode; 
       break;
@@ -245,10 +251,10 @@ void setMode(uint8_t newMode)
   if(newMode != RF98M_MODE_SLEEP){ //test on ModeReady
     while(digitalRead(dio5) == 0)
     {
-      Serial.println("Wait for it...");
+      printf("Wait for it...\n");
     } 
   }
-  Serial.println("Mode Change Done");
+  printf("Mode Change Done\n");
   return;
 }
 void Receiver_Startup()
@@ -279,17 +285,17 @@ void Receiver_Startup()
   spi_send_byte(REG_PLLHOP, 0x00);
   setMode(RFM98_MODE_FSRX);
   setMode(RFM98_MODE_RX);
-  //Serial.print(digitalRead(dio5)); 	//check these values
-  //Serial.println(digitalRead(dio0));	//check these values
+  //printf(digitalRead(dio5)); 	//check these values
+  //printf(digitalRead(dio0));	//check these values
 }
 
 void CheckRx()
 {
   char Message[256], RSSIString[6];
   //SentenceCount
-  Serial.print("Signal Strength is at "); 
-  Serial.print(-(spi_rcv_data(REG_RSSIVALUE))/2);
-  Serial.println("dBm"); 
+  printf("Signal Strength is at "); 
+  printf(-(spi_rcv_data(REG_RSSIVALUE))/2);
+  printf("dBm\n"); 
   
   if  ((digitalRead(dio0) == 0) && (digitalRead(dio3) == 0))
 	state = 1; 	//payload is not ready and fifo is not ready
@@ -302,34 +308,34 @@ void CheckRx()
   
   switch (state) {
   case 1:
-	Serial.println("Case 1 Triggered");
+	printf("Case 1 Triggered\n");
 	Bytes = receiveMessage(Message, CurrentCount);
 	state = 3;
-	Serial.println("state transition from 1 to 3");
+	printf("state transition from 1 to 3\n");
 	break;
   case 2:
-	Serial.println("Case 2 Triggered");
+	printf("Case 2 Triggered\n");
 	Bytes = receiveMessage(Message, CurrentCount);
 	state = 3;
-	Serial.println("state transition from 2 to 3");
+	printf("state transition from 2 to 3");
 	break;
   case 3:
-	Serial.println("Case 3 Triggered");
+	printf("Case 3 Triggered\n");
 	//check CRC okay, Reset and load to SD card
 	for (int k = 0; k < Bytes; k++) {
-	  Serial.print(Message[k]);
+	  printf(Message[k]);
 	}
-	Serial.println();
+	printf("\n");
 	Bytes = 0;
-	Serial.println("wait for new packet...");
+	printf("wait for new packet...\n");
 	break;
   case 4:
-	Serial.println("Case 4 Triggered");
+	printf("Case 4 Triggered\n");
 	//wait for interrupt trigger
 	if (Bytes == 0) 
-	  Serial.println("Think I'm waiting for some data..");
+	  printf("Think I'm waiting for some data..\n");
 	else
-	  Serial.println("Think there is some transmission problem, please wait"); //dont think it will reach here
+	  printf("Think there is some transmission problem, please wait\n"); //dont think it will reach here
 	break;
   }
 
@@ -346,6 +352,16 @@ int receiveMessage(char *message, int i)
   message[i+1] = '\0';
   return i+1;
 }  
+
+int main(void) { //int argc, char *argv[]
+	int i, j, k;
+	wiringPiSetup();
+	while (1){
+		checkRx();   
+	}
+	return;
+}
+
 /*
 int readadc(adcnum)
 {
