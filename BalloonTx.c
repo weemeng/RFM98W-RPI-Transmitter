@@ -16,7 +16,7 @@
 #define REG_BITRATEMSB				0x02	//0x00 fixed
 #define REG_BITRATELSB				0x03	//0x6B fixed
 #define REG_FDEVMSB					0x04	//0x00
-#define REG_FDEVLSB					0x05	//0x52
+#define REG_FDEVLSB					0x05	//0x52 //Set to 5Khz
 #define REG_FRFMSB					0x06	//0x6C
 #define REG_FRFMID					0x07	//0x40
 #define REG_FRFLSB					0x08	//0x00
@@ -91,19 +91,19 @@
 
 const int SSpin = 24; 
 const int dio0pin = 29;
+const int dio1pin = ; //get this done 
 const int dio3pin = 31;
 const int dio4pin = 32;
 const int dio5pin = 33; 
+unsigned char Message[256] = {0xABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF1234567890};
 uint8_t currentMode = 0x09;
 //boolean reading = 0;
 int CurrentCount = 0, Bytes, state; 
 
-
-
-void spi_send_byte(uint8_t Data1, uint8_t Data2) {
+void spi_send_byte(uint8_t Data1, uint8_t Data2) { 
     digitalWrite(24, LOW);
 	uint8_t txbuf[2];
-    txbuf[0] = (0x80 | Data1);
+    txbuf[0] = (0x80 | Data1); //addr
 	txbuf[1] = Data2;
     wiringPiSPIDataRW(0, txbuf, 2);
 	digitalWrite(24, HIGH);
@@ -116,36 +116,34 @@ uint8_t spi_rcv_data(uint8_t Data) {
 	digitalWrite(24, HIGH);
 	return rxbuf[0];
 }
-void dio0interrupt () {		//PAYLOAD READY on RISING
-  printf("Payload Ready\n");
-  if (state == 1) {
-	state = 2;
-	printf("state transition from 1 to 2\n");
+/*void dio0interrupt () {		//PAYLOAD READY on RISING
+  printf("Packet Sent\n");
+}*/
+void dio1interrupt () { 	//FIFO Threshold FALLING
+  printf("Fifo Threshold\n");
+  while (digitalRead(dio2pin) == 0) {
+	if (CurrentCount < 256) { //push it in
+		spi_send_byte(0x00, (uint8_t) Message[CurrentCount]);
+		CurrentCount++;
+	}
+	else {
+		printf("no more message.. program shouldn't come here\n");//shouldn't come here
+		break;
+	}
   }
 }
-void waitforFIFO () {
-  while (digitalRead(dio3pin) == 1) {
-  }
-  printf("FINALLY, Thats my FIFO data..\n");
-  state = 3;
-  printf("state transition from 4 to 3\n"); 
-}
-void dio3interrupt () { 	//FIFO EMPTY either low or high
-  printf("Fifo Empty\n");
-  if (digitalRead(dio0pin) == 0) { //Payload not Ready
-	state = 4;
-	waitforFIFO();
-  }
+/*void dio3interrupt () { 	//FIFO EMPTY either low or high
+  printf("Tx Ready\n");
 }
 void dio4interrupt () { 	//Preamble Detect on RISING
   //might need to make a condition to avoid certain states
-  printf("Preamble Detected");
-  spi_send_byte(REG_AFCFEI, 0x10);
-}
+  printf("Temp Changed to some weird temperature\n");
+}*/
 void setInterrupts() {
-  wiringPiISR (dio0pin, INT_EDGE_RISING,  &dio0interrupt);
-  wiringPiISR (dio3pin, INT_EDGE_BOTH,  &dio3interrupt);
-  wiringPiISR (dio4pin, INT_EDGE_RISING,  &dio4interrupt);
+  //wiringPiISR (dio0pin, INT_EDGE_RISING,  &dio0interrupt);
+  wiringPiISR (dio1pin, INT_EDGE_FALLING,  &dio1interrupt);
+  //wiringPiISR (dio3pin, INT_EDGE_BOTH,  &dio3interrupt);
+  //wiringPiISR (dio4pin, INT_EDGE_RISING,  &dio4interrupt);
 }
 void setMode(uint8_t newMode)
 {
@@ -203,6 +201,8 @@ void SetFSKMod()
   setMode(RF98M_MODE_SLEEP);
   spi_send_byte(REG_BITRATEMSB, 0x00);
   spi_send_byte(REG_BITRATELSB, 0x68);
+  spi_send_byte(REG_FDEVMSB, 0x00);
+  spi_send_byte(REG_FDEVLSB, 0x52);
   spi_send_byte(REG_FRFMSB, 0x6C); //exact at 433Mhz
   spi_send_byte(REG_FRFMID, 0x40);
   spi_send_byte(REG_FRFLSB, 0x00);
@@ -215,10 +215,17 @@ void SetFSKMod()
   return;
 }
 
-void Receiver_Startup()
+void Transmitter_Startup()
 {
   //initialize
   setMode(RFM98_MODE_STANDBY);
+  
+  //transmitter settings
+  spi_send_byte(REG_PACONFIG, 0xFF);
+  spi_send_byte(REG_PARAMP, 0x4C);
+  spi_send_byte(REG_OCP, 0x2D);
+  
+  //receiver settings
   spi_send_byte(REG_LNA, 0xC0);
   spi_send_byte(REG_RXCONFIG, 0x1E);
   spi_send_byte(REG_RSSICONFIG, 0x03);
@@ -229,6 +236,8 @@ void Receiver_Startup()
   spi_send_byte(REG_RXTIMEOUT1, 0x00);
   spi_send_byte(REG_RXTIMEOUT2, 0x00);
   spi_send_byte(REG_RXTIMEOUT3, 0x00);
+  
+  //Basic Settings
   spi_send_byte(REG_OSC, 0x03); //@standby Clkout turned off
   spi_send_byte(REG_PREAMBLEMSB, 0x5A); //23205
   spi_send_byte(REG_PREAMBLELSB, 0xA5);
@@ -237,15 +246,18 @@ void Receiver_Startup()
   spi_send_byte(REG_PACKETCONFIG1, 0x18);
   spi_send_byte(REG_PACKETCONFIG2, 0x40);
   spi_send_byte(REG_PAYLOADLENGTH, 0xFF);
+  spi_send_byte(REG_FIFOTHRESH, 0x85);
   spi_send_byte(REG_IMAGECAL, 0x41);
-  spi_send_byte(REG_DIOMAPPING1, 0x04);
-  spi_send_byte(REG_DIOMAPPING2, 0xF1);
+  spi_send_byte(REG_DIOMAPPING1, 0x01);
+  spi_send_byte(REG_DIOMAPPING2, 0x31);
   spi_send_byte(REG_PLLHOP, 0x00);
-  setMode(RFM98_MODE_FSRX);
-  setMode(RFM98_MODE_RX);
+  spi_send_byte(REG_PADAC, 0x04);
   //printf(digitalRead(dio5pin)); 	//check these values
   //printf(digitalRead(dio0pin));	//check these values
+  setMode(RFM98_MODE_FSTX);
+  setMode(RFM98_MODE_TX);	
 }
+/*
 int receiveMessage(char *message, int i)
 {
   int Package = 256;
@@ -258,16 +270,91 @@ int receiveMessage(char *message, int i)
   message[i+1] = '\0';
   return i+1;
 }  
-
-void CheckRx()
-{
-  char Message[256];
-  int k;
-  //SentenceCount
-  printf("Signal Strength is at "); 
-  printf("%d", -(spi_rcv_data(REG_RSSIVALUE))/2);
-  printf("dBm\n"); 
+*/
+void Tx() {
+  uint8_t Irq2;
+  unsigned char onebyte;
   
+
+  if ((digitalRead(dio2pin) == 0) && (digitalRead(dio0pin) == 1))
+	state = 1;
+  else if ((digitalRead(dio2pin) == 0) && (digitalRead(dio0pin) == 0))
+    state = 2;
+  else if ((digitalRead(dio1pin) == 1) && (digitalRead(dio0pin) == 0))
+    state = 3;
+  else if ((digitalRead(dio1pin) == 0) && (digitalRead(dio0pin) == 0))
+    state = 4; //run interrupt
+  else if ((digitalRead(dio1pin) == 1) && (digitalRead(dio0pin) == 1))
+    state = 5;
+  else if ((digitalRead(dio1pin) == 0) && (digitalRead(dio0pin) == 1))
+    state = 6;	
+  
+  switch (state) {
+  case 1:
+	printf("Case 1 Triggered\n");
+	state = 5;
+	printf("state transition from 1 to 5\n");
+	break;
+  case 2:
+	printf("Case 2 Triggered\n");
+	while (digitalRead(dio2pin)){
+	}
+	state = 3;
+	printf("state transition from 2 to 3");
+	break;
+  case 3:
+	printf("Case 3 Triggered\n");	
+	if (digitalRead(dio1pin) == 0) {
+		state = 4;
+		printf("state transition from 3 to 4");
+	}
+	break;
+  case 4:
+	printf("Case 4 Triggered\n");
+	//wait for interrupt trigger
+	//interrupt should make me skip this code
+	while (digitalRead(dio2pin) == 0) {
+		if (CurrentCount < 256) { //push it in
+			spi_send_byte(0x00, (uint8_t) Message[CurrentCount]);
+			CurrentCount++;
+		}
+		else {
+			printf("no more message.. program shouldn't come here\n");//shouldn't come here
+			break;
+	    }
+	}
+	printf("state transition from 4 to 1"); 
+	break;
+  case 5:
+	printf("Case 5 Triggered\n");
+	while (digitalRead(dio1pin)){ //while we are still more than threshold
+	}
+	state = 6;
+	printf("state transition from 5 to 6");
+	break;
+  case 6:
+	printf("Case 6 Triggered\n");
+	Irq2 = spi_rcv_data(REG_IRQFLAGS2);
+	if ((Irq2 & 0x40) == 0x40) {
+		state = 7;
+		printf("state transition from 6 to 7");
+	}
+	break;
+  case 7:
+	printf("Case 7 Triggered\n");
+	printf("Prepare next Message\n");
+	CurrentCount = 0;
+	break;
+  }
+}
+
+  	
+  
+  
+  
+  
+  
+  /*
   if  ((digitalRead(dio0pin) == 0) && (digitalRead(dio3pin) == 0))
 	state = 1; 	//payload is not ready and fifo is not ready
   else if ((digitalRead(dio0pin) == 1) && (digitalRead(dio3pin) == 0))
@@ -311,23 +398,24 @@ void CheckRx()
 	  printf("Think there is some transmission problem, please wait\n"); //dont think it will reach here
 	break;
   }
-
+*/
 }
+
 void setRFM98W(void)
 {
 	// initialize the pins
-	int i;
+	int pisetupbit;
 	pinMode( SSpin, OUTPUT);
 	pinMode(dio0pin, INPUT);
 	pinMode(dio3pin, INPUT);
 	pinMode(dio4pin, INPUT);
 	pinMode(dio5pin, INPUT);
 	setInterrupts();
-	if ((i = wiringPiSPISetup(0, 8000000))<0)
+	if ((pisetupbit = wiringPiSPISetup(0, 1000000))<0)
 		return -1;
 	SetFSKMod();
 	//testCommunication();
-	Receiver_Startup();
+	Transmitter_Startup();
 }
 void setup() {
   printf("Balloon Initializing...");
@@ -339,7 +427,7 @@ int main(void) { //int argc, char *argv[]
 	wiringPiSetup();
 	setup();
 	while (1){
-		CheckRx();   
+		SendTx();   
 	}
 	return;
 }
