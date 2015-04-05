@@ -88,7 +88,7 @@
 #define RFM98_MODE_FSRX				0x0C	//00001100
 #define RFM98_MODE_RX				0x0D	//00001101
 
-const int _slaveSelectPin = 10; 
+const int SSpin = 24; 
 const int dio0pin = 29;
 const int dio3pin = 31;
 const int dio4pin = 32;
@@ -120,6 +120,13 @@ void dio0interrupt () {		//PAYLOAD READY on RISING
 	printf("state transition from 1 to 2\n");
   }
 }
+void waitforFIFO () {
+  while (digitalRead(dio3) == 1) {
+  }
+  printf("FINALLY, Thats my FIFO data..\n");
+  state = 3;
+  printf("state transition from 4 to 3\n"); 
+}
 void dio3interrupt () { 	//FIFO EMPTY either low or high
   printf("Fifo Empty\n");
   if (digitalRead(dio0) == 0) { //Payload not Ready
@@ -127,37 +134,12 @@ void dio3interrupt () { 	//FIFO EMPTY either low or high
 	waitforFIFO();
   }
 }
-void waitforFIFO () {
-  while (digitalRead(dio3) == 1) {
-  }
-  printf("FINALLY, Thats my FIFO data..\n");
-  state = 3;
-  printf("state transition from 4 to 3\n");
-  
-}
 void dio4interrupt () { 	//Preamble Detect on RISING
   //might need to make a condition to avoid certain states
   printf("Preamble Detected");
   writeRegister(REG_AFCFEI, 0x10);
 }
-/*
-void SPI_Send_Byte(unsigned char Data) {
-    digitalWrite(24, LOW);
-	unsigned char buf[2];
-    buf[0] = (Data>>8);
-	buf[1] = (0x00FF & Data);
-    wiringPiSPIDataRW(0, buf, 2);
-	digitalWrite(24, HIGH);
-}
 
-unsigned char SPI_Read_Byte(unsigned char Data) {
-    digitalWrite(24, LOW);
-	unsigned char buf[1];
-    buf[0] = Data;
-    wiringPiSPIDataRW(0, buf, 1);
-	digitalWrite(24, HIGH);
-	return buf;
-}*/
 void spi_send_byte(uint8_t Data1, uint8_t Data2) {
     digitalWrite(24, LOW);
 	uint8_t txbuf[2];
@@ -166,7 +148,6 @@ void spi_send_byte(uint8_t Data1, uint8_t Data2) {
     wiringPiSPIDataRW(0, txbuf, 2);
 	digitalWrite(24, HIGH);
 }
-
 uint8_t spi_rcv_data(uint8_t Data) {
     digitalWrite(24, LOW);
 	uint8_t rxbuf[1];
@@ -178,11 +159,11 @@ uint8_t spi_rcv_data(uint8_t Data) {
 void setRFM98W(void)
 {
 	// initialize the pins
-	pinModeGpio( _slaveSelectPin, OUTPUT);
-	pinModeGpio(dio0pin, INPUT);
-	pinModeGpio(dio3pin, INPUT);
-	pinModeGpio(dio4pin, INPUT);
-	pinModeGpio(dio5pin, INPUT);
+	pinMode( SSpin, OUTPUT);
+	pinMode(dio0pin, INPUT);
+	pinMode(dio3pin, INPUT);
+	pinMode(dio4pin, INPUT);
+	pinMode(dio5pin, INPUT);
 	setInterrupts();
 	if ((i = wiringPiSPISetup(0, 8000000))<0)
 		return -1;
@@ -190,7 +171,6 @@ void setRFM98W(void)
 	//testCommunication();
 	Receiver_Startup();
 }
-
 void SetFSKMod()
 {
   printf("Setting FSK Mode\n");
