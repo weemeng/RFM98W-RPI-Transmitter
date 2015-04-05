@@ -92,10 +92,11 @@
 const int SSpin = 24; 
 const int dio0pin = 29;
 const int dio1pin = ; //get this done 
+const int dio2pin = ;
 const int dio3pin = 31;
 const int dio4pin = 32;
 const int dio5pin = 33; 
-unsigned char Message[256] = {0xABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF1234567890};
+unsigned long Message[] = {0xABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF123456789ABCDEF1234567890};
 uint8_t currentMode = 0x09;
 //boolean reading = 0;
 int CurrentCount = 0, Bytes, state; 
@@ -116,9 +117,6 @@ uint8_t spi_rcv_data(uint8_t Data) {
 	digitalWrite(24, HIGH);
 	return rxbuf[0];
 }
-/*void dio0interrupt () {		//PAYLOAD READY on RISING
-  printf("Packet Sent\n");
-}*/
 void dio1interrupt () { 	//FIFO Threshold FALLING
   printf("Fifo Threshold\n");
   while (digitalRead(dio2pin) == 0) {
@@ -132,18 +130,8 @@ void dio1interrupt () { 	//FIFO Threshold FALLING
 	}
   }
 }
-/*void dio3interrupt () { 	//FIFO EMPTY either low or high
-  printf("Tx Ready\n");
-}
-void dio4interrupt () { 	//Preamble Detect on RISING
-  //might need to make a condition to avoid certain states
-  printf("Temp Changed to some weird temperature\n");
-}*/
 void setInterrupts() {
-  //wiringPiISR (dio0pin, INT_EDGE_RISING,  &dio0interrupt);
   wiringPiISR (dio1pin, INT_EDGE_FALLING,  &dio1interrupt);
-  //wiringPiISR (dio3pin, INT_EDGE_BOTH,  &dio3interrupt);
-  //wiringPiISR (dio4pin, INT_EDGE_RISING,  &dio4interrupt);
 }
 void setMode(uint8_t newMode)
 {
@@ -257,25 +245,9 @@ void Transmitter_Startup()
   setMode(RFM98_MODE_FSTX);
   setMode(RFM98_MODE_TX);	
 }
-/*
-int receiveMessage(char *message, int i)
-{
-  int Package = 256;
-  
-  while (digitalRead(dio3pin) == 0) {	//Fifo isnt empty
-	if (i < Package) {
-	  message[i] = (unsigned char)spi_rcv_data(REG_FIFO);
-	}
-  }
-  message[i+1] = '\0';
-  return i+1;
-}  
-*/
 void Tx() {
   uint8_t Irq2;
-  unsigned char onebyte;
   
-
   if ((digitalRead(dio2pin) == 0) && (digitalRead(dio0pin) == 1))
 	state = 1;
   else if ((digitalRead(dio2pin) == 0) && (digitalRead(dio0pin) == 0))
@@ -348,59 +320,6 @@ void Tx() {
   }
 }
 
-  	
-  
-  
-  
-  
-  
-  /*
-  if  ((digitalRead(dio0pin) == 0) && (digitalRead(dio3pin) == 0))
-	state = 1; 	//payload is not ready and fifo is not ready
-  else if ((digitalRead(dio0pin) == 1) && (digitalRead(dio3pin) == 0))
-	state = 2; 	//payload is ready and fifo is not ready
-  else if ((digitalRead(dio0pin) == 1) && (digitalRead(dio3pin) == 1))
-	state = 3; 	//payload is ready and fifo is ready
-  else
-    state = 4;  //settled by interrupt
-  
-  switch (state) {
-  case 1:
-	printf("Case 1 Triggered\n");
-	Bytes = receiveMessage(Message, CurrentCount);
-	state = 3;
-	printf("state transition from 1 to 3\n");
-	break;
-  case 2:
-	printf("Case 2 Triggered\n");
-	Bytes = receiveMessage(Message, CurrentCount);
-	state = 3;
-	printf("state transition from 2 to 3");
-	break;
-  case 3:
-	printf("Case 3 Triggered\n");
-	//check CRC okay, Reset and load to SD card
-	for (k = 0; k < Bytes; k++) {
-	  printf("%d", Message[k]);
-	  if (k == Bytes-1)
-		printf("\n");
-	}
-	printf("\n");
-	Bytes = 0;
-	printf("wait for new packet...\n");
-	break;
-  case 4:
-	printf("Case 4 Triggered\n");
-	//wait for interrupt trigger
-	if (Bytes == 0) 
-	  printf("Think I'm waiting for some data..\n");
-	else
-	  printf("Think there is some transmission problem, please wait\n"); //dont think it will reach here
-	break;
-  }
-*/
-}
-
 void setRFM98W(void)
 {
 	// initialize the pins
@@ -427,7 +346,7 @@ int main(void) { //int argc, char *argv[]
 	wiringPiSetup();
 	setup();
 	while (1){
-		SendTx();   
+		Tx();   
 	}
 	return;
 }
