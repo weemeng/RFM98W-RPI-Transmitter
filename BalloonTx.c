@@ -94,25 +94,9 @@ const int dio3pin = 31;
 const int dio4pin = 32;
 const int dio5pin = 33; 
 uint8_t currentMode = 0x09;
+boolean reading = 0;
+int CurrentCount = 0, Bytes, state; 
 
-void setup() {
-  printf("Balloon Initializing...");
-  setRFM98W();
-  printf("Setup Complete");
-}
-
-int running() {
-  //spitx.tx_buf(0x0D | 
-}
-void setInterrupts() {
-  wiringPiISR (dio0pin, INT_EDGE_RISING,  dio0interrupt());
-  wiringPiISR (dio3pin, INT_EDGE_BOTH,  dio3interrupt());
-  wiringPiISR (dio4pin, INT_EDGE_RISING,  dio4interrupt());
-  attachInterrupt(dio0, dio0interrupt, RISING);
-  attachInterrupt(dio3, dio3interrupt, CHANGE);
-  attachInterrupt(dio4, dio4interrupt, RISING);
-  //attachInterrupt(dio5, dio5interrupt, CHANGE);
-}
 void dio0interrupt () {		//PAYLOAD READY on RISING
   printf("Payload Ready\n");
   if (state == 1) {
@@ -139,6 +123,11 @@ void dio4interrupt () { 	//Preamble Detect on RISING
   printf("Preamble Detected");
   writeRegister(REG_AFCFEI, 0x10);
 }
+void setInterrupts() {
+  wiringPiISR (dio0pin, INT_EDGE_RISING,  &dio0interrupt);
+  wiringPiISR (dio3pin, INT_EDGE_BOTH,  &dio3interrupt);
+  wiringPiISR (dio4pin, INT_EDGE_RISING,  &dio4interrupt);
+}
 
 void spi_send_byte(uint8_t Data1, uint8_t Data2) {
     digitalWrite(24, LOW);
@@ -155,38 +144,6 @@ uint8_t spi_rcv_data(uint8_t Data) {
     wiringPiSPIDataRW(0, rxbuf, 1);
 	digitalWrite(24, HIGH);
 	return buf[0];
-}
-void setRFM98W(void)
-{
-	// initialize the pins
-	pinMode( SSpin, OUTPUT);
-	pinMode(dio0pin, INPUT);
-	pinMode(dio3pin, INPUT);
-	pinMode(dio4pin, INPUT);
-	pinMode(dio5pin, INPUT);
-	setInterrupts();
-	if ((i = wiringPiSPISetup(0, 8000000))<0)
-		return -1;
-	SetFSKMod();
-	//testCommunication();
-	Receiver_Startup();
-}
-void SetFSKMod()
-{
-  printf("Setting FSK Mode\n");
-  setMode(RF98M_MODE_SLEEP);
-  spi_send_byte(REG_BITRATEMSB, 0x00);
-  spi_send_byte(REG_BITRATELSB, 0x68);
-  spi_send_byte(REG_FRFMSB, 0x6C); //exact at 433Mhz
-  spi_send_byte(REG_FRFMID, 0x40);
-  spi_send_byte(REG_FRFLSB, 0x00);
-   
-  printf("FSK Mode Set\n");
-  
-  printf("Mode = "); 
-  printf(spi_rcv_data(REG_OPMODE));
-  printf("\n"); 
-  return;
 }
 void setMode(uint8_t newMode)
 {
@@ -237,6 +194,25 @@ void setMode(uint8_t newMode)
   printf("Mode Change Done\n");
   return;
 }
+
+void SetFSKMod()
+{
+  printf("Setting FSK Mode\n");
+  setMode(RF98M_MODE_SLEEP);
+  spi_send_byte(REG_BITRATEMSB, 0x00);
+  spi_send_byte(REG_BITRATELSB, 0x68);
+  spi_send_byte(REG_FRFMSB, 0x6C); //exact at 433Mhz
+  spi_send_byte(REG_FRFMID, 0x40);
+  spi_send_byte(REG_FRFLSB, 0x00);
+   
+  printf("FSK Mode Set\n");
+  
+  printf("Mode = "); 
+  printf(spi_rcv_data(REG_OPMODE));
+  printf("\n"); 
+  return;
+}
+
 void Receiver_Startup()
 {
   //initialize
@@ -341,7 +317,26 @@ int main(void) { //int argc, char *argv[]
 	}
 	return;
 }
-
+void setRFM98W(void)
+{
+	// initialize the pins
+	pinMode( SSpin, OUTPUT);
+	pinMode(dio0pin, INPUT);
+	pinMode(dio3pin, INPUT);
+	pinMode(dio4pin, INPUT);
+	pinMode(dio5pin, INPUT);
+	setInterrupts();
+	if ((i = wiringPiSPISetup(0, 8000000))<0)
+		return -1;
+	SetFSKMod();
+	//testCommunication();
+	Receiver_Startup();
+}
+void setup() {
+  printf("Balloon Initializing...");
+  setRFM98W();
+  printf("Setup Complete");
+}
 /*
 int readadc(adcnum)
 {
