@@ -72,6 +72,7 @@
 #define REG_IRQFLAGS2				0x3F	//trigger
 #define REG_DIOMAPPING1				0x40	//00-00-00-01
 #define REG_DIOMAPPING2				0x41	//00-11-000-1
+#define REG_PLLHOP					0x44
 #define REG_PADAC					0x4D	//00000100 //regular boost
 #define REG_BITRATEFRAC				0x5D	//super minute accuracy which can be accounted for by the doppler shift
 #define REG_AGCREFLF				0x61
@@ -105,7 +106,7 @@ void dio0interrupt () {		//PAYLOAD READY on RISING
   }
 }
 void waitforFIFO () {
-  while (digitalRead(dio3) == 1) {
+  while (digitalRead(dio3pin) == 1) {
   }
   printf("FINALLY, Thats my FIFO data..\n");
   state = 3;
@@ -113,7 +114,7 @@ void waitforFIFO () {
 }
 void dio3interrupt () { 	//FIFO EMPTY either low or high
   printf("Fifo Empty\n");
-  if (digitalRead(dio0) == 0) { //Payload not Ready
+  if (digitalRead(dio0pin) == 0) { //Payload not Ready
 	state = 4;
 	waitforFIFO();
   }
@@ -143,7 +144,7 @@ uint8_t spi_rcv_data(uint8_t Data) {
     rxbuf[0] = Data;
     wiringPiSPIDataRW(0, rxbuf, 1);
 	digitalWrite(24, HIGH);
-	return buf[0];
+	return rxbuf[0];
 }
 void setMode(uint8_t newMode)
 {
@@ -186,7 +187,7 @@ void setMode(uint8_t newMode)
   } 
   
   if(newMode != RF98M_MODE_SLEEP){ //test on ModeReady
-    while(digitalRead(dio5) == 0)
+    while(digitalRead(dio5pin) == 0)
     {
       printf("Wait for it...\n");
     } 
@@ -206,9 +207,9 @@ void SetFSKMod()
   spi_send_byte(REG_FRFLSB, 0x00);
    
   printf("FSK Mode Set\n");
-  
+  uint8_t cntMode = spi_rcv_data(REG_OPMODE);
   printf("Mode = "); 
-  printf(spi_rcv_data(REG_OPMODE));
+  printf(cntMode);
   printf("\n"); 
   return;
 }
@@ -241,23 +242,35 @@ void Receiver_Startup()
   spi_send_byte(REG_PLLHOP, 0x00);
   setMode(RFM98_MODE_FSRX);
   setMode(RFM98_MODE_RX);
-  //printf(digitalRead(dio5)); 	//check these values
-  //printf(digitalRead(dio0));	//check these values
+  //printf(digitalRead(dio5pin)); 	//check these values
+  //printf(digitalRead(dio0pin));	//check these values
 }
+int receiveMessage(char *message, int i)
+{
+  int Package = 256;
+  
+  while (digitalRead(dio3pin) == 0) {	//Fifo isnt empty
+	if (i < Package) {
+	  message[i] = (unsigned char)spi_rcv_data(REG_FIFO);
+	}
+  }
+  message[i+1] = '\0';
+  return i+1;
+}  
 
 void CheckRx()
 {
-  char Message[256], RSSIString[6];
+  char Message[256];
   //SentenceCount
   printf("Signal Strength is at "); 
   printf(-(spi_rcv_data(REG_RSSIVALUE))/2);
   printf("dBm\n"); 
   
-  if  ((digitalRead(dio0) == 0) && (digitalRead(dio3) == 0))
+  if  ((digitalRead(dio0pin) == 0) && (digitalRead(dio3pin) == 0))
 	state = 1; 	//payload is not ready and fifo is not ready
-  else if ((digitalRead(dio0) == 1) && (digitalRead(dio3) == 0))
+  else if ((digitalRead(dio0pin) == 1) && (digitalRead(dio3pin) == 0))
 	state = 2; 	//payload is ready and fifo is not ready
-  else if ((digitalRead(dio0) == 1) && (digitalRead(dio3) == 1))
+  else if ((digitalRead(dio0pin) == 1) && (digitalRead(dio3pin) == 1))
 	state = 3; 	//payload is ready and fifo is ready
   else
     state = 4;  //settled by interrupt
@@ -296,30 +309,19 @@ void CheckRx()
   }
 
 }
-int receiveMessage(char *message, int i)
-{
-  int Package = 256;
-  
-  while (digitalRead(dio3) == 0) {	//Fifo isnt empty
-	if (i < Package) {
-	  message[i] = (unsigned char)spi_rcv_data(REG_FIFO);
-	}
-  }
-  message[i+1] = '\0';
-  return i+1;
-}  
 
 int main(void) { //int argc, char *argv[]
-	int i, j, k;
+	//int i, j, k;
 	wiringPiSetup();
 	while (1){
-		checkRx();   
+		CheckRx();   
 	}
 	return;
 }
 void setRFM98W(void)
 {
 	// initialize the pins
+	int i;
 	pinMode( SSpin, OUTPUT);
 	pinMode(dio0pin, INPUT);
 	pinMode(dio3pin, INPUT);
