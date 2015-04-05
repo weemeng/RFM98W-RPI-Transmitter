@@ -6,9 +6,9 @@
 #include <wiringPi.h>
 #include <wiringPiSPI.h>
 #include <stdint.h>
-#include <fcntl.h>
-#include <sys/ioctl.h>
-#include <linux/spi/spidev.h>
+//#include <fcntl.h>
+//#include <sys/ioctl.h>
+//#include <linux/spi/spidev.h>
 
 
 #define REG_FIFO                    0x00 	//okay
@@ -82,7 +82,7 @@
 	
 
 //MODES
-#define RF98M_MODE_SLEEP			0x08	
+#define RFM98_MODE_SLEEP			0x08	
 #define RFM98_MODE_STANDBY			0x09	//00001001
 #define RFM98_MODE_FSTX				0x0A	//00001010
 #define RFM98_MODE_TX				0x0B	//00001011
@@ -91,7 +91,7 @@
 
 const int SSpin = 24; 
 const int dio0pin = 29;
-const int dio1pin = 22; //get this done 
+const int dio1pin = 22;
 const int dio2pin = 23;
 const int dio3pin = 31;
 const int dio4pin = 32;
@@ -144,11 +144,12 @@ void spi_send_byte(uint8_t Data1, uint8_t Data2) {
 }
 uint8_t spi_rcv_data(uint8_t Data) {
     digitalWrite(24, LOW);
-	uint8_t rxbuf[1];
+	uint8_t rxbuf[2];
     rxbuf[0] = Data;
-    wiringPiSPIDataRW(0, rxbuf, 1);
+	rxbuf[1] = 0x00;
+    wiringPiSPIDataRW(0, rxbuf, 2);
 	digitalWrite(24, HIGH);
-	return rxbuf[0];
+	return rxbuf[1];
 }
 uint8_t getByte() {
 	uint8_t output;
@@ -156,7 +157,7 @@ uint8_t getByte() {
 		Byte = 0;
 		Word++;
 	}
-	if (Word == 32)
+	if (Word == 32) {
 		printf("New Message");
 	}
 	output = (Message[Word] >> ((3-Byte)*8));	//take MSB
@@ -188,7 +189,7 @@ void setMode(uint8_t newMode)
   
   switch (newMode) 
   {
-    case RF98M_MODE_SLEEP:
+    case RFM98_MODE_SLEEP:
       printf("Changing to Sleep Mode\n"); 
       spi_send_byte(REG_OPMODE, newMode);
       currentMode = newMode; 
@@ -221,7 +222,7 @@ void setMode(uint8_t newMode)
     default: return;
   } 
   
-  if(newMode != RF98M_MODE_SLEEP){ //test on ModeReady
+  if(newMode != RFM98_MODE_SLEEP){ //test on ModeReady
     while(digitalRead(dio5pin) == 0)
     {
       printf("Wait for it...\n");
@@ -234,7 +235,7 @@ void setMode(uint8_t newMode)
 void SetFSKMod()
 {
   printf("Setting FSK Mode\n");
-  setMode(RF98M_MODE_SLEEP);
+  setMode(RFM98_MODE_SLEEP);
   spi_send_byte(REG_BITRATEMSB, 0x00);
   spi_send_byte(REG_BITRATELSB, 0x68);
   spi_send_byte(REG_FDEVMSB, 0x00);
@@ -380,7 +381,7 @@ void setRFM98W(void)
 	pinMode(dio4pin, INPUT);
 	pinMode(dio5pin, INPUT);
 	setInterrupts();
-	if ((pisetupbit = wiringPiSPISetup(0, 1000000))<0)
+	if ((pisetupbit = wiringPiSPISetup(0, 8000000))<0)
 		return -1;
 	SetFSKMod();
 	//testCommunication();
@@ -392,11 +393,12 @@ void setup() {
   printf("Setup Complete");
 }
 int main(void) { //int argc, char *argv[]
-	//int i, j, k;
+	int i;
 	wiringPiSetup();
 	setup();
-	while (1){
+	//while (1){
+	for (i=0;i<5;i++)	
 		Tx();   
-	}
+	//}
 	return 0;
 }
