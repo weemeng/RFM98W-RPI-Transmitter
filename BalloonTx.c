@@ -21,12 +21,12 @@
 #define REG_FRFMID					0x07	//0x40
 #define REG_FRFLSB					0x08	//0x00
 #define REG_PACONFIG				0x09	//0xFF
-#define REG_PARAMP					0x0A	//01001100
-#define REG_OCP						0x0B	//00101101
+#define REG_PARAMP					0x0A	//0x4C 01001100
+#define REG_OCP						0x0B	//0x2D 00101101
 
 // for Receiver
-#define REG_LNA						0x0C	//1100-0000
-#define REG_RXCONFIG				0x0D	//00011-110
+#define REG_LNA						0x0C	//0xC0 1100-0000
+#define REG_RXCONFIG				0x0D	//0x1E 00011-110
 #define REG_RSSICONFIG				0x0E	//00000011
 #define REG_RSSICOLLISION			0x0F	//0x0A
 #define REG_RSSITHRESH				0x10	//dont care for now
@@ -91,8 +91,8 @@
 
 const int SSpin = 24; 
 const int dio0pin = 29;
-const int dio1pin = 22;
-const int dio2pin = 23;
+const int dio1pin = 16;
+const int dio2pin = 18;
 const int dio3pin = 31;
 const int dio4pin = 32;
 const int dio5pin = 33; 
@@ -234,6 +234,7 @@ void setMode(uint8_t newMode)
 
 void SetFSKMod()
 {
+  uint8_t cntMode;
   printf("Setting FSK Mode\n");
   setMode(RFM98_MODE_SLEEP);
   spi_send_byte(REG_BITRATEMSB, 0x00);
@@ -242,10 +243,9 @@ void SetFSKMod()
   spi_send_byte(REG_FDEVLSB, 0x52);
   spi_send_byte(REG_FRFMSB, 0x6C); //exact at 433Mhz
   spi_send_byte(REG_FRFMID, 0x40);
-  spi_send_byte(REG_FRFLSB, 0x00);
-   
+  spi_send_byte(REG_FRFLSB, 0x00);  
   printf("FSK Mode Set\n");
-  uint8_t cntMode = spi_rcv_data(REG_OPMODE);
+  cntMode = spi_rcv_data(REG_OPMODE);
   printf("Mode = "); 
   printf("%d", cntMode);
   printf("\n"); 
@@ -369,7 +369,7 @@ void Tx() {
   }
 }
 
-void setRFM98W(void)
+int setRFM98W(void)
 {
 	// initialize the pins
 	int pisetupbit;
@@ -386,6 +386,7 @@ void setRFM98W(void)
 	SetFSKMod();
 	//testCommunication();
 	Transmitter_Startup();
+	return 0;
 }
 void setup() {
   printf("Balloon Initializing...");
