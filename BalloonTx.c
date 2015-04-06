@@ -91,12 +91,12 @@
 #define RFM98_MODE_RX				0x0D	//00001101
 
 const int SSpin = 24; 
-const int dio0pin = 29;
-const int dio1pin = 16;
-const int dio2pin = 18;
-const int dio3pin = 31;
-const int dio4pin = 32;
-const int dio5pin = 33; 
+const int dio0pin = 5; //29 WiringPi BCM pin numbers
+const int dio1pin = 23; //16
+const int dio2pin = 24; //18
+const int dio3pin = 6; //31
+const int dio4pin = 12; //32
+const int dio5pin = 13; //33
 unsigned long Message[32] = {	0xABCDEF12, //4 bytes = 1 word
 								0x3456789A,
 								0xBCDEF123,
@@ -401,9 +401,9 @@ int main(void) { //int argc, char *argv[]
 	int i;
 	wiringPiSetup();
 	setup();
-	//while (1){
-	for (i=0;i<5;i++)	
+	while (1){
+	//for (i=0;i<5;i++)	
 		Tx();   
-	//}
+	}
 	return 0;
 }
