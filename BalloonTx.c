@@ -133,7 +133,7 @@ unsigned long Message[32] = {	0xABCDEF12, //4 bytes = 1 word
 uint8_t currentMode = 0x09;
 uint8_t nextByte = 0x00;
 //boolean reading = 0;
-int CurrentCount = 0, Word=0, Byte=0, state; 
+int CurrentCount = 0, Word=0, Byte=0, state, packetfinished=0; 
 
 void spi_send_byte(uint8_t Data1, uint8_t Data2) { 
     digitalWrite(24, LOW);
@@ -177,21 +177,22 @@ void arrangePacket() {
 			CurrentCount++;
 		}
 		else {
-			printf("no more message.. program shouldn't come here\n");//shouldn't come here
+		    packetfinished = 1;
+			printf("Packet finished sending\n");//shouldn't come here
 			break;
 		}
 	}
 }
-void dio1interrupt () { 	//FIFO Threshold FALLING
+/*void dio1interrupt () { 	//FIFO Threshold FALLING
   printf("Running Dio1 interrupt\n");
   printf("Fifo Threshold interrupt\n");
   arrangePacket();				//might have to disable interrupt here
   return;
-}
-void setInterrupts() {
+}*/
+/*void setInterrupts() {
   wiringPiISR (dio1pin, INT_EDGE_FALLING,  &dio1interrupt);
   printf("Interrupts set up\n");
-}
+}*/
 void setMode(uint8_t newMode)
 {
   if(newMode == currentMode)
@@ -344,21 +345,28 @@ void Tx() {
 	printf("Case 3 Triggered\n");	
 	//prepare next message and reset the packetsent (by exiting Tx)
 	printf("End of test package\n");
-	//CurrentCount = 0;
 	delay(500);
+	printf(spi_rcv_data(0x3F));
+	//CurrentCount = 0;
 	//state = 4;
 	//printf("state transition from 3 to 4");
 	break;
   case 4:
 	printf("Case 4 Triggered\n");
-	arrangePacket();
-	state = 2; //tentatively should go to 2 but can go to 5
-	printf("state transition from 4 to 2\n"); 
+	if (packetfinished = 0) { //assuming arrangePacket will fill the buffer to 64 though this shouldn't matter as it will change state in the next loop.
+		arrangePacket();
+		state = 2; //tentatively should go to 2 but can go to 5
+		printf("state transition from 4 to 2\n");
+	}
+	else {
+		state = 3; //tentatively should go to 2 but can go to 5
+		printf("state transition from 4 to 3\n");
+	}
 	break;
   case 5:
 	printf("Case 5 Triggered\n");
-	//while (digitalRead(dio1pin)){ //while we are still more than threshold
-	//}
+	while (digitalRead(dio1pin)){ //while we are still more than threshold
+	}
 	if (digitalRead(dio1pin) == 0) {
 		state = 6;
 		printf("state transition from 5 to 6\n");
@@ -398,7 +406,7 @@ int setRFM98W(void)
 	pinMode(dio3pin, INPUT);
 	pinMode(dio4pin, INPUT);
 	pinMode(dio5pin, INPUT);
-	setInterrupts();
+	//setInterrupts();
 	if ((pisetupbit = wiringPiSPISetup(0, 8000000))<0)
 		return -1;
 	SetFSKMod();
