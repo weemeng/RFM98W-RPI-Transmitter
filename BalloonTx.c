@@ -162,7 +162,7 @@ uint8_t getByte() {
 	}
 	if (Word == 32) {
 		printf("New Message\n");
-		Word == 0;
+		Word = 0;
 	}
 	output = (Message[Word] >> ((3-Byte)*8));	//take MSB
 	Byte++;
@@ -172,7 +172,7 @@ void arrangePacket() {
 	while (digitalRead(dio2pin) == 0) {
 		if (CurrentCount < 256) { //push it in    
 			nextByte = getByte();
-			printf("This is byte %d ------- ");
+			printf("This is byte %d ------- ", CurrentCount);
 			spi_send_byte(0x00, nextByte);
 			CurrentCount++;
 		}
@@ -368,9 +368,11 @@ void Tx() {
 	printf("Case 6 Triggered\n");
 	//interrupt should kick in here;
 	//but we will run this just in case
-	arrangePacket();
-	state = 2; //tentatively should go to 2 but can go to 5
-	printf("state transition from 6 to 2\n");	
+	//arrangePacket();
+	if (digitalRead(dio2pin) == 1) {
+		state = 2; //tentatively should go to 2 but can go to 5
+		printf("state transition from 6 to 2\n");	
+	}
 	break;
   case 7:
 	printf("Case 7 Triggered\n");
