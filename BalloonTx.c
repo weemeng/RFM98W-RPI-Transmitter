@@ -346,19 +346,21 @@ void Tx() {
 	//prepare next message and reset the packetsent (by exiting Tx)
 	printf("End of test package\n");
 	delay(500);
-	printf(spi_rcv_data(0x3F));
+	printf("%d", spi_rcv_data(0x3F));
 	//CurrentCount = 0;
 	//state = 4;
 	//printf("state transition from 3 to 4");
 	break;
   case 4:
 	printf("Case 4 Triggered\n");
-	if (packetfinished = 0) { //assuming arrangePacket will fill the buffer to 64 though this shouldn't matter as it will change state in the next loop.
+	if (packetfinished == 0) { //assuming arrangePacket will fill the buffer to 64 though this shouldn't matter as it will change state in the next loop.
 		arrangePacket();
 		state = 2; //tentatively should go to 2 but can go to 5
 		printf("state transition from 4 to 2\n");
 	}
 	else {
+	    while(digitalRead(dio0pin) == 0){
+		}
 		state = 3; //tentatively should go to 2 but can go to 5
 		printf("state transition from 4 to 3\n");
 	}
@@ -374,9 +376,7 @@ void Tx() {
 	break;
   case 6:
 	printf("Case 6 Triggered\n");
-	//interrupt should kick in here;
-	//but we will run this just in case
-	//arrangePacket();
+	arrangePacket();
 	if (digitalRead(dio2pin) == 1) {
 		state = 2; //tentatively should go to 2 but can go to 5
 		printf("state transition from 6 to 2\n");	
