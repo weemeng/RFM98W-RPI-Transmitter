@@ -91,12 +91,12 @@
 #define RFM98_MODE_RX				0x0D	//00001101
 
 const int SSpin = 24; 
-const int dio0pin = 5; //29 WiringPi BCM pin numbers
-const int dio1pin = 23; //16
-const int dio2pin = 24; //18
-const int dio3pin = 6; //31
-const int dio4pin = 12; //32
-const int dio5pin = 13; //33
+const int dio0pin = 21; //29 WiringPi Pin 
+const int dio1pin = 4; //16
+const int dio2pin = 5; //18
+const int dio3pin = 22; //31
+const int dio4pin = 26; //32
+const int dio5pin = 23; //33
 unsigned long Message[32] = {	0xABCDEF12, //4 bytes = 1 word
 								0x3456789A,
 								0xBCDEF123,
@@ -141,6 +141,7 @@ void spi_send_byte(uint8_t Data1, uint8_t Data2) {
     txbuf[0] = (0x80 | Data1); //addr
 	txbuf[1] = Data2;
     wiringPiSPIDataRW(0, txbuf, 2);
+	printf("I am using register %d and i am setting it to %d", Data1, Data2);
 	digitalWrite(24, HIGH);
 }
 uint8_t spi_rcv_data(uint8_t Data) {
@@ -149,6 +150,7 @@ uint8_t spi_rcv_data(uint8_t Data) {
     rxbuf[0] = Data;
 	rxbuf[1] = 0x00;
     wiringPiSPIDataRW(0, rxbuf, 2);
+	printf("I am reading register %d and i am getting %d", Data, rxbuf[1]);
 	digitalWrite(24, HIGH);
 	return rxbuf[1];
 }
@@ -166,22 +168,14 @@ uint8_t getByte() {
 	return output;
 }
 void dio1interrupt () { 	//FIFO Threshold FALLING
-  
-  printf("Fifo Threshold\n");
-  while (digitalRead(dio2pin) == 0) {
-	if (CurrentCount < 256) { //push it in    
-		nextByte = getByte();
-		spi_send_byte(0x00, nextByte);
-		CurrentCount++;
-	}
-	else {
-		printf("no more message.. program shouldn't come here\n");//shouldn't come here
-		break;
-	}
-  }
+  printf("Running Dio1 interrupt");
+  printf("Fifo Threshold interrupt\n");
+  arrangePacket();				//might have to disable interrupt here
+  return;
 }
 void setInterrupts() {
   wiringPiISR (dio1pin, INT_EDGE_FALLING,  &dio1interrupt);
+  printf("Interrupts set up\n");
 }
 void setMode(uint8_t newMode)
 {
@@ -298,81 +292,101 @@ void Transmitter_Startup()
   setMode(RFM98_MODE_FSTX);
   setMode(RFM98_MODE_TX);	
 }
+void arrangePacket() {
+	while (digitalRead(dio2pin) == 0) {
+		if (CurrentCount < 256) { //push it in    
+			nextByte = getByte();
+			spi_send_byte(0x00, nextByte);
+			CurrentCount++;
+		}
+		else {
+			printf("no more message.. program shouldn't come here\n");//shouldn't come here
+			break;
+		}
+	}
+}
 void Tx() {
   uint8_t Irq2;
-  
-  if ((digitalRead(dio2pin) == 0) && (digitalRead(dio0pin) == 1))
+  //dio2pin = FIFO FULL //dio0pin packet sent //dio1pin Fifo Threshold //dio3pin fifioempty
+  if ((digitalRead(dio2pin) == 1) && (digitalRead(dio0pin) == 1)) //FIFO full and packet sent
 	state = 1;
-  else if ((digitalRead(dio2pin) == 0) && (digitalRead(dio0pin) == 0))
+  else if ((digitalRead(dio2pin) == 1) && (digitalRead(dio0pin) == 0)) //FIFO full and packet not sent
     state = 2;
-  else if ((digitalRead(dio1pin) == 1) && (digitalRead(dio0pin) == 0))
+  else if ((digitalRead(dio3pin) == 1) && (digitalRead(dio0pin) == 1)) //FIFO empty and packet sent 
     state = 3;
-  else if ((digitalRead(dio1pin) == 0) && (digitalRead(dio0pin) == 0))
-    state = 4; //run interrupt
-  else if ((digitalRead(dio1pin) == 1) && (digitalRead(dio0pin) == 1))
+  else if ((digitalRead(dio3pin) == 1) && (digitalRead(dio0pin) == 0)) //FIFO empty and packet not sent 
+    state = 4; 
+  else if ((digitalRead(dio1pin) == 1) && (digitalRead(dio0pin) == 0)) //FIFO level above threshold and packet not sent 
     state = 5;
-  else if ((digitalRead(dio1pin) == 0) && (digitalRead(dio0pin) == 1))
-    state = 6;	
-  
+  else if ((digitalRead(dio1pin) == 0) && (digitalRead(dio0pin) == 0)) //FIFO level below threshold and packet not sent 
+    state = 6;
+  else if ((digitalRead(dio1pin) == 1) && (digitalRead(dio0pin) == 1)) //FIFO level above threshold and packet sent 
+    state = 7;	
+  else if ((digitalRead(dio1pin) == 0) && (digitalRead(dio0pin) == 1)) //FIFO level below threshold and packet sent
+    state = 8;	
+
   switch (state) {
   case 1:
 	printf("Case 1 Triggered\n");
-	state = 5;
-	printf("state transition from 1 to 5\n");
+	state = 7;
+	printf("state transition from 1 to 7\n");
 	break;
   case 2:
 	printf("Case 2 Triggered\n");
-	while (digitalRead(dio2pin)){
+	while (digitalRead(dio2pin)){ //while fifo full, wait for buffer to not be full...
 	}
-	state = 3;
-	printf("state transition from 2 to 3");
+	state = 5;
+	printf("state transition from 2 to 5");
 	break;
   case 3:
 	printf("Case 3 Triggered\n");	
-	if (digitalRead(dio1pin) == 0) {
-		state = 4;
-		printf("state transition from 3 to 4");
-	}
+	//prepare next message and reset the packetsent (by exiting Tx)
+	printf("End of test package\n");
+	//CurrentCount = 0;
+	delay(500);
+	//state = 4;
+	//printf("state transition from 3 to 4");
 	break;
   case 4:
 	printf("Case 4 Triggered\n");
-	//wait for interrupt trigger
-	//interrupt should make me skip this code
-	while (digitalRead(dio2pin) == 0) {
-	if (CurrentCount < 256) { //push it in    
-		nextByte = getByte();
-		spi_send_byte(0x00, nextByte);
-		CurrentCount++;
-	}
-	else {
-		printf("no more message.. program shouldn't come here\n");//shouldn't come here
-		break;
-	}
-  }printf("state transition from 4 to 1"); 
+	arrangePacket();
+	state = 2; //tentatively should go to 2 but can go to 5
+	printf("state transition from 4 to 2"); 
 	break;
   case 5:
 	printf("Case 5 Triggered\n");
-	while (digitalRead(dio1pin)){ //while we are still more than threshold
-	}
+	//while (digitalRead(dio1pin)){ //while we are still more than threshold
+	//}
 	state = 6;
 	printf("state transition from 5 to 6");
 	break;
   case 6:
 	printf("Case 6 Triggered\n");
+	//interrupt should kick in here;
+	//but we will run this just in case
+	arrangepacket();
+	state = 2; //tentatively should go to 2 but can go to 5
+	printf("state transition from 6 to 2");	
+	break;
+  case 7:
+	printf("Case 7 Triggered\n");
+	state = 7;
+	printf("state transition from 7 to 8");
+	break;
+  }
+  case 8:
+	printf("Case 8 Triggered\n");
+	printf("Prepare next Message\n");
+	state = 8;
+	printf("state transition from 8 to 3");
+	break;
+  }
+}
 	Irq2 = spi_rcv_data(REG_IRQFLAGS2);
 	if ((Irq2 & 0x40) == 0x40) {
 		state = 7;
 		printf("state transition from 6 to 7");
 	}
-	break;
-  case 7:
-	printf("Case 7 Triggered\n");
-	printf("Prepare next Message\n");
-	CurrentCount = 0;
-	break;
-  }
-}
-
 int setRFM98W(void)
 {
 	// initialize the pins
@@ -393,9 +407,9 @@ int setRFM98W(void)
 	return 0;
 }
 void setup() {
-  printf("Balloon Initializing...");
+  printf("Balloon Initializing...\n");
   setRFM98W();
-  printf("Setup Complete");
+  printf("Setup Complete\n");
 }
 int main(void) { //int argc, char *argv[]
 	int i;
