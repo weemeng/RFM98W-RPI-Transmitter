@@ -71,7 +71,7 @@
 #define REG_IMAGECAL				0x3B	//0000-0000	//prev41
 #define REG_IRQFLAGS1				0x3E	//trigger
 #define REG_IRQFLAGS2				0x3F	//trigger
-#define REG_DIOMAPPING1				0x40	//00-00-00-01
+#define REG_DIOMAPPING1				0x40	//00-00-00-00
 #define REG_DIOMAPPING2				0x41	//00-11-000-1
 //#define REG_PLLHOP					0x44
 //#define REG_PADAC					0x4D	//00000100 //regular boost
@@ -141,7 +141,7 @@ void spi_send_byte(uint8_t Data1, uint8_t Data2) {
     txbuf[0] = (0x80 | Data1); //addr
 	txbuf[1] = Data2;
     wiringPiSPIDataRW(0, txbuf, 2);
-	printf("I am using register %d and i am setting it to %d", Data1, Data2);
+	printf("I am using register %d and i am setting it to %d\n", Data1, Data2);
 	digitalWrite(24, HIGH);
 }
 uint8_t spi_rcv_data(uint8_t Data) {
@@ -150,7 +150,7 @@ uint8_t spi_rcv_data(uint8_t Data) {
     rxbuf[0] = Data;
 	rxbuf[1] = 0x00;
     wiringPiSPIDataRW(0, rxbuf, 2);
-	printf("I am reading register %d and i am getting %d", Data, rxbuf[1]);
+	printf("I am reading register %d and i am getting %d\n", Data, rxbuf[1]);
 	digitalWrite(24, HIGH);
 	return rxbuf[1];
 }
@@ -167,8 +167,21 @@ uint8_t getByte() {
 	Byte++;
 	return output;
 }
+void arrangePacket() {
+	while (digitalRead(dio2pin) == 0) {
+		if (CurrentCount < 256) { //push it in    
+			nextByte = getByte();
+			spi_send_byte(0x00, nextByte);
+			CurrentCount++;
+		}
+		else {
+			printf("no more message.. program shouldn't come here\n");//shouldn't come here
+			break;
+		}
+	}
+}
 void dio1interrupt () { 	//FIFO Threshold FALLING
-  printf("Running Dio1 interrupt");
+  printf("Running Dio1 interrupt\n");
   printf("Fifo Threshold interrupt\n");
   arrangePacket();				//might have to disable interrupt here
   return;
@@ -283,7 +296,7 @@ void Transmitter_Startup()
   spi_send_byte(REG_PAYLOADLENGTH, 0xFF);
   spi_send_byte(REG_FIFOTHRESH, 0x85);
   spi_send_byte(REG_IMAGECAL, 0x00); 
-  spi_send_byte(REG_DIOMAPPING1, 0x01);
+  spi_send_byte(REG_DIOMAPPING1, 0x00);
   spi_send_byte(REG_DIOMAPPING2, 0x31);
 //  spi_send_byte(REG_PLLHOP, 0x00);
 //  spi_send_byte(REG_PADAC, 0x04);
@@ -292,21 +305,8 @@ void Transmitter_Startup()
   setMode(RFM98_MODE_FSTX);
   setMode(RFM98_MODE_TX);	
 }
-void arrangePacket() {
-	while (digitalRead(dio2pin) == 0) {
-		if (CurrentCount < 256) { //push it in    
-			nextByte = getByte();
-			spi_send_byte(0x00, nextByte);
-			CurrentCount++;
-		}
-		else {
-			printf("no more message.. program shouldn't come here\n");//shouldn't come here
-			break;
-		}
-	}
-}
+
 void Tx() {
-  uint8_t Irq2;
   //dio2pin = FIFO FULL //dio0pin packet sent //dio1pin Fifo Threshold //dio3pin fifioempty
   if ((digitalRead(dio2pin) == 1) && (digitalRead(dio0pin) == 1)) //FIFO full and packet sent
 	state = 1;
@@ -336,7 +336,7 @@ void Tx() {
 	while (digitalRead(dio2pin)){ //while fifo full, wait for buffer to not be full...
 	}
 	state = 5;
-	printf("state transition from 2 to 5");
+	printf("state transition from 2 to 5\n");
 	break;
   case 3:
 	printf("Case 3 Triggered\n");	
@@ -351,42 +351,36 @@ void Tx() {
 	printf("Case 4 Triggered\n");
 	arrangePacket();
 	state = 2; //tentatively should go to 2 but can go to 5
-	printf("state transition from 4 to 2"); 
+	printf("state transition from 4 to 2\n"); 
 	break;
   case 5:
 	printf("Case 5 Triggered\n");
 	//while (digitalRead(dio1pin)){ //while we are still more than threshold
 	//}
 	state = 6;
-	printf("state transition from 5 to 6");
+	printf("state transition from 5 to 6\n");
 	break;
   case 6:
 	printf("Case 6 Triggered\n");
 	//interrupt should kick in here;
 	//but we will run this just in case
-	arrangepacket();
+	arrangePacket();
 	state = 2; //tentatively should go to 2 but can go to 5
-	printf("state transition from 6 to 2");	
+	printf("state transition from 6 to 2\n");	
 	break;
   case 7:
 	printf("Case 7 Triggered\n");
 	state = 7;
-	printf("state transition from 7 to 8");
+	printf("state transition from 7 to 8\n");
 	break;
-  }
   case 8:
 	printf("Case 8 Triggered\n");
 	printf("Prepare next Message\n");
 	state = 8;
-	printf("state transition from 8 to 3");
+	printf("state transition from 8 to 3\n");
 	break;
   }
 }
-	Irq2 = spi_rcv_data(REG_IRQFLAGS2);
-	if ((Irq2 & 0x40) == 0x40) {
-		state = 7;
-		printf("state transition from 6 to 7");
-	}
 int setRFM98W(void)
 {
 	// initialize the pins
@@ -412,7 +406,7 @@ void setup() {
   printf("Setup Complete\n");
 }
 int main(void) { //int argc, char *argv[]
-	int i;
+	//int i;
 	wiringPiSetup();
 	setup();
 	while (1){
