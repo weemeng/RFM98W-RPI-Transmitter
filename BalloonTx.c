@@ -161,7 +161,8 @@ uint8_t getByte() {
 		Word++;
 	}
 	if (Word == 32) {
-		printf("New Message");
+		printf("New Message\n");
+		Word == 0;
 	}
 	output = (Message[Word] >> ((3-Byte)*8));	//take MSB
 	Byte++;
@@ -171,6 +172,7 @@ void arrangePacket() {
 	while (digitalRead(dio2pin) == 0) {
 		if (CurrentCount < 256) { //push it in    
 			nextByte = getByte();
+			printf("This is byte %d ------- ");
 			spi_send_byte(0x00, nextByte);
 			CurrentCount++;
 		}
@@ -357,8 +359,10 @@ void Tx() {
 	printf("Case 5 Triggered\n");
 	//while (digitalRead(dio1pin)){ //while we are still more than threshold
 	//}
-	state = 6;
-	printf("state transition from 5 to 6\n");
+	if (digitalRead(dio1pin) == 0) {
+		state = 6;
+		printf("state transition from 5 to 6\n");
+	}
 	break;
   case 6:
 	printf("Case 6 Triggered\n");
