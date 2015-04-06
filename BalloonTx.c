@@ -20,11 +20,12 @@
 #define REG_FRFMSB					0x06	//0x6C
 #define REG_FRFMID					0x07	//0x40
 #define REG_FRFLSB					0x08	//0x00
-#define REG_PACONFIG				0x09	//0xFF
-#define REG_PARAMP					0x0A	//0x4C 01001100
-#define REG_OCP						0x0B	//0x2D 00101101
+#define REG_PACONFIG				0x09	//0x4B 
+#define REG_PARAMP					0x0A	//0x09 00001001
+#define REG_OCP						0x0B	//0x00 00010001
 
 // for Receiver
+/*
 #define REG_LNA						0x0C	//0xC0 1100-0000
 #define REG_RXCONFIG				0x0D	//0x1E 00011-110
 #define REG_RSSICONFIG				0x0E	//00000011
@@ -42,7 +43,7 @@
 #define REG_RXTIMEOUT1				0X20
 #define REG_RXTIMEOUT2				0X21
 #define REG_RXTIMEOUT3				0X22
-
+*/
 // Oscillator
 #define REG_OSC						0x24	//0x03 clockout off
 
@@ -67,13 +68,13 @@
 #define REG_SEQCONFIG1				0x36
 #define REG_SEQCONFIG2				0x37
 
-#define REG_IMAGECAL				0x3B	//0100-0001
+#define REG_IMAGECAL				0x3B	//0000-0000	//prev41
 #define REG_IRQFLAGS1				0x3E	//trigger
 #define REG_IRQFLAGS2				0x3F	//trigger
 #define REG_DIOMAPPING1				0x40	//00-00-00-01
 #define REG_DIOMAPPING2				0x41	//00-11-000-1
-#define REG_PLLHOP					0x44
-#define REG_PADAC					0x4D	//00000100 //regular boost
+//#define REG_PLLHOP					0x44
+//#define REG_PADAC					0x4D	//00000100 //regular boost
 #define REG_BITRATEFRAC				0x5D	//super minute accuracy which can be accounted for by the doppler shift
 #define REG_AGCREFLF				0x61
 #define REG_AGCTHRESHLF1			0x62
@@ -223,9 +224,12 @@ void setMode(uint8_t newMode)
   } 
   
   if(newMode != RFM98_MODE_SLEEP){ //test on ModeReady
-    while(digitalRead(dio5pin) == 0)
+    uint8_t testmode = spi_rcv_data(0x3E);
+	while((testmode & 0x80) != 0x80)
     {
-      printf("Wait for it...\n");
+      testmode = spi_rcv_data(0x3E);
+	  delay(500);
+	  printf("Wait for it...\n");
     } 
   }
   printf("Mode Change Done\n");
@@ -258,12 +262,12 @@ void Transmitter_Startup()
   setMode(RFM98_MODE_STANDBY);
   
   //transmitter settings
-  spi_send_byte(REG_PACONFIG, 0xFF);
-  spi_send_byte(REG_PARAMP, 0x4C);
-  spi_send_byte(REG_OCP, 0x2D);
+  spi_send_byte(REG_PACONFIG, 0x4B);
+  spi_send_byte(REG_PARAMP, 0x09);
+  spi_send_byte(REG_OCP, 0x00);
   
   //receiver settings
-  spi_send_byte(REG_LNA, 0xC0);
+/*  spi_send_byte(REG_LNA, 0xC0);
   spi_send_byte(REG_RXCONFIG, 0x1E);
   spi_send_byte(REG_RSSICONFIG, 0x03);
   spi_send_byte(REG_RSSICOLLISION, 0x0A);  
@@ -273,7 +277,7 @@ void Transmitter_Startup()
   spi_send_byte(REG_RXTIMEOUT1, 0x00);
   spi_send_byte(REG_RXTIMEOUT2, 0x00);
   spi_send_byte(REG_RXTIMEOUT3, 0x00);
-  
+  */
   //Basic Settings
   spi_send_byte(REG_OSC, 0x03); //@standby Clkout turned off
   spi_send_byte(REG_PREAMBLEMSB, 0x5A); //23205
@@ -284,11 +288,11 @@ void Transmitter_Startup()
   spi_send_byte(REG_PACKETCONFIG2, 0x40);
   spi_send_byte(REG_PAYLOADLENGTH, 0xFF);
   spi_send_byte(REG_FIFOTHRESH, 0x85);
-  spi_send_byte(REG_IMAGECAL, 0x41);
+  spi_send_byte(REG_IMAGECAL, 0x00); 
   spi_send_byte(REG_DIOMAPPING1, 0x01);
   spi_send_byte(REG_DIOMAPPING2, 0x31);
-  spi_send_byte(REG_PLLHOP, 0x00);
-  spi_send_byte(REG_PADAC, 0x04);
+//  spi_send_byte(REG_PLLHOP, 0x00);
+//  spi_send_byte(REG_PADAC, 0x04);
   //printf(digitalRead(dio5pin)); 	//check these values
   //printf(digitalRead(dio0pin));	//check these values
   setMode(RFM98_MODE_FSTX);
