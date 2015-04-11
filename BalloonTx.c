@@ -6,6 +6,7 @@
 #include <wiringPi.h>
 #include <wiringPiSPI.h>
 #include <stdint.h>
+#include <string.h>
 //#include <fcntl.h>
 //#include <sys/ioctl.h>
 //#include <linux/spi/spidev.h>
@@ -15,14 +16,14 @@
 #define REG_OPMODE                  0x01	//ever changing
 #define REG_BITRATEMSB				0x02	//0x00 fixed
 #define REG_BITRATELSB				0x03	//0x6B fixed
-#define REG_FDEVMSB					0x04	//0x00
-#define REG_FDEVLSB					0x05	//0x52 //Set to 5Khz
+#define REG_FDEVMSB					0x04	//0x04
+#define REG_FDEVLSB					0x05	//0x00 62.5khz
 #define REG_FRFMSB					0x06	//0x6C
 #define REG_FRFMID					0x07	//0x40
 #define REG_FRFLSB					0x08	//0x00
-#define REG_PACONFIG				0x09	//0x4B 
+#define REG_PACONFIG				0x09	//0x4B 01001011
 #define REG_PARAMP					0x0A	//0x09 00001001
-#define REG_OCP						0x0B	//0x00 00010001
+#define REG_OCP						0x0B	//0x0B 00001011
 
 // for Receiver
 /*
@@ -45,12 +46,12 @@
 #define REG_RXTIMEOUT3				0X22
 */
 // Oscillator
-#define REG_OSC						0x24	//0x03 clockout off
+#define REG_OSC						0x24	//0x07 clockout off
 
 // Packet Handling
-#define REG_PREAMBLEMSB				0x25 	//0x5A
-#define REG_PREAMBLELSB				0x26 	//0xA5
-#define REG_SYNCCONFIG				0x27	//0x98 10011000
+#define REG_PREAMBLEMSB				0x25 	//0x00
+#define REG_PREAMBLELSB				0x26 	//0x64 send 100 preamble
+#define REG_SYNCCONFIG				0x27	//0x18 00011000
 #define REG_SYNCVALUE1				0x28	//0x48
 #define REG_SYNCVALUE2				0x29
 #define REG_SYNCVALUE3				0x2A
@@ -59,29 +60,29 @@
 #define REG_SYNCVALUE6				0x2D
 #define REG_SYNCVALUE7				0x2E
 #define REG_SYNCVALUE8				0x2F
-#define REG_PACKETCONFIG1			0x30	//0x18 00011000
+#define REG_PACKETCONFIG1			0x30	//0x00 00000000
 #define REG_PACKETCONFIG2			0x31	//0x40 01000-000//111
 #define REG_PAYLOADLENGTH			0x32	//change to 7FF - 2047 bytes
-#define REG_FIFOTHRESH				0x35    //0xBC 1011 1100 
+#define REG_FIFOTHRESH				0x35    //0x85 //not 0xBC 1011 1100 
 
 //	Sequencer
 #define REG_SEQCONFIG1				0x36
 #define REG_SEQCONFIG2				0x37
 
-#define REG_IMAGECAL				0x3B	//0000-0000	//prev41
+#define REG_IMAGECAL				0x3B	//0xC2 
 #define REG_IRQFLAGS1				0x3E	//trigger
 #define REG_IRQFLAGS2				0x3F	//trigger
 #define REG_DIOMAPPING1				0x40	//00-00-00-00
-#define REG_DIOMAPPING2				0x41	//00-11-000-1
-//#define REG_PLLHOP					0x44
+#define REG_DIOMAPPING2				0x41	//0x31 00-11-000-1
+#define REG_REGVERSION				0x42	//read
+//#define REG_PLLHOP				0x44
 //#define REG_PADAC					0x4D	//00000100 //regular boost
-#define REG_BITRATEFRAC				0x5D	//super minute accuracy which can be accounted for by the doppler shift
+//#define REG_BITRATEFRAC			0x5D	//super minute accuracy which can be accounted for by the doppler shift
 #define REG_AGCREFLF				0x61
 #define REG_AGCTHRESHLF1			0x62
 #define REG_AGCTHRESHLF2			0x63
 #define REG_AGCTHRESHLF3			0x64
 	
-
 //MODES
 #define RFM98_MODE_SLEEP			0x08	
 #define RFM98_MODE_STANDBY			0x09	//00001001
@@ -90,13 +91,14 @@
 #define RFM98_MODE_FSRX				0x0C	//00001100
 #define RFM98_MODE_RX				0x0D	//00001101
 
+//for Transmission
 const int SSpin = 24; 
-const int dio0pin = 21; //29 WiringPi Pin 
-const int dio1pin = 4; //16
-const int dio2pin = 5; //18
-const int dio3pin = 22; //31
-const int dio4pin = 26; //32
-const int dio5pin = 23; //33
+const int dio0pin = 21;  WiringPi Pin 
+const int dio1pin = 4; 
+const int dio2pin = 5; 
+const int dio3pin = 22; 
+const int dio4pin = 26; 
+const int dio5pin = 23; 
 unsigned long Message[32] = {	0xABCDEF12, //4 bytes = 1 word
 								0x3456789A,
 								0xBCDEF123,
@@ -132,8 +134,12 @@ unsigned long Message[32] = {	0xABCDEF12, //4 bytes = 1 word
 
 uint8_t currentMode = 0x09;
 uint8_t nextByte = 0x00;
-//boolean reading = 0;
 int CurrentCount = 0, Word=0, Byte=0, state, packetfinished=0; 
+
+//for Pictures
+#
+
+
 
 void spi_send_byte(uint8_t Data1, uint8_t Data2) { 
     digitalWrite(24, LOW);
@@ -252,9 +258,9 @@ void SetFSKMod()
   printf("Setting FSK Mode\n");
   setMode(RFM98_MODE_SLEEP);
   spi_send_byte(REG_BITRATEMSB, 0x00);
-  spi_send_byte(REG_BITRATELSB, 0x68);
-  spi_send_byte(REG_FDEVMSB, 0x00);
-  spi_send_byte(REG_FDEVLSB, 0x52);
+  spi_send_byte(REG_BITRATELSB, 0x6B);
+  spi_send_byte(REG_FDEVMSB, 0x04);
+  spi_send_byte(REG_FDEVLSB, 0x00);
   spi_send_byte(REG_FRFMSB, 0x6C); //exact at 433Mhz
   spi_send_byte(REG_FRFMID, 0x40);
   spi_send_byte(REG_FRFLSB, 0x00);  
@@ -274,7 +280,7 @@ void Transmitter_Startup()
   //transmitter settings
   spi_send_byte(REG_PACONFIG, 0x4B);
   spi_send_byte(REG_PARAMP, 0x09);
-  spi_send_byte(REG_OCP, 0x00);
+  spi_send_byte(REG_OCP, 0x0B);
   
   //receiver settings
 /*  spi_send_byte(REG_LNA, 0xC0);
@@ -289,16 +295,16 @@ void Transmitter_Startup()
   spi_send_byte(REG_RXTIMEOUT3, 0x00);
   */
   //Basic Settings
-  spi_send_byte(REG_OSC, 0x03); //@standby Clkout turned off
-  spi_send_byte(REG_PREAMBLEMSB, 0x5A); //23205
-  spi_send_byte(REG_PREAMBLELSB, 0xA5);
-  spi_send_byte(REG_SYNCCONFIG, 0x98);
+  spi_send_byte(REG_OSC, 0x07); //@standby Clkout turned off
+  spi_send_byte(REG_PREAMBLEMSB, 0x00); 
+  spi_send_byte(REG_PREAMBLELSB, 0x64);
+  spi_send_byte(REG_SYNCCONFIG, 0x18);
   spi_send_byte(REG_SYNCVALUE1, 0x48);
-  spi_send_byte(REG_PACKETCONFIG1, 0x18);
+  spi_send_byte(REG_PACKETCONFIG1, 0x00);
   spi_send_byte(REG_PACKETCONFIG2, 0x40);
   spi_send_byte(REG_PAYLOADLENGTH, 0xFF);
   spi_send_byte(REG_FIFOTHRESH, 0x85);
-  spi_send_byte(REG_IMAGECAL, 0x00); 
+  spi_send_byte(REG_IMAGECAL, 0xC2); 
   spi_send_byte(REG_DIOMAPPING1, 0x00);
   spi_send_byte(REG_DIOMAPPING2, 0x31);
 //  spi_send_byte(REG_PLLHOP, 0x00);
@@ -307,6 +313,7 @@ void Transmitter_Startup()
   //printf(digitalRead(dio0pin));	//check these values
   setMode(RFM98_MODE_FSTX);
   setMode(RFM98_MODE_TX);	
+  return;
 }
 
 void Tx() {
@@ -347,9 +354,14 @@ void Tx() {
 	printf("End of test package\n");
 	delay(500);
 	printf("%d", spi_rcv_data(0x3F));
-	//CurrentCount = 0;
-	//state = 4;
-	//printf("state transition from 3 to 4");
+	if (packetfinished==1) {
+		setMode(RFM98_MODE_FSTX);
+		CurrentCount = 0;
+		delay(5000);
+		setMode(RFM98_MODE_TX);
+		state = 4;
+		printf("state transition from 3 to 4");
+	}
 	break;
   case 4:
 	printf("Case 4 Triggered\n");
@@ -414,6 +426,12 @@ int setRFM98W(void)
 	Transmitter_Startup();
 	return 0;
 }
+void takingPicture() { //Use system commands to do that.
+	//go and read up on fork and execute
+	//meanwhile...
+	system("raspistill -w 640 -h 480 -o Stillpic.jpg -q 10");
+	return;
+}
 void setup() {
   printf("Balloon Initializing...\n");
   setRFM98W();
@@ -422,6 +440,8 @@ void setup() {
 int main(void) { //int argc, char *argv[]
 	//int i;
 	wiringPiSetup();
+	takingPicture(); //fork out this command
+	Message();
 	setup();
 	while (1){
 	//for (i=0;i<5;i++)	
