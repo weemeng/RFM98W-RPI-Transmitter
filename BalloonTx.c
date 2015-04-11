@@ -428,7 +428,35 @@ int setRFM98W(void)
 	return 0;
 }
 void Message() {
-	FILE *file1;
+	FILE * pFile;
+	long lSize;
+	char * buffer;
+	size_t result;
+
+	pFile = fopen ( "myfile.bin" , "rb" );
+	if (pFile==NULL) {fputs ("File error",stderr); exit (1);}
+
+	// obtain file size:
+	fseek (pFile , 0 , SEEK_END);
+	lSize = ftell (pFile);
+	rewind (pFile);
+
+	// allocate memory to contain the whole file:
+	buffer = (char*) malloc (sizeof(char)*lSize);
+	if (buffer == NULL) {fputs ("Memory error",stderr); exit (2);}
+
+	// copy the file into the buffer:
+	result = fread (buffer,1,lSize,pFile);
+	if (result != lSize) {fputs ("Reading error",stderr); exit (3);}
+
+	/* the whole file is now loaded in the memory buffer. */
+
+	// terminate
+	fclose (pFile);
+	free (buffer);
+
+/*	FILE *file1;
+
 	unsigned char file_data[100];
 	const char *filename1 = "Stillpic.jpg";
 
@@ -443,7 +471,7 @@ void Message() {
 		fclose(file1);
 	}
 	printf("Message done");
-	return;
+*/	return;
 }
 void takingPicture() { //Use system commands to do that.
 	//go and read up on fork and execute
