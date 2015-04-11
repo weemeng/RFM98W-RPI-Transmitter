@@ -99,7 +99,7 @@ const int dio2pin = 5;
 const int dio3pin = 22; 
 const int dio4pin = 26; 
 const int dio5pin = 23; 
-unsigned long Message[32] = {	0xABCDEF12, //4 bytes = 1 word
+/*unsigned long Message[32] = {	0xABCDEF12, //4 bytes = 1 word
 								0x3456789A,
 								0xBCDEF123,
 								0x456789AB,
@@ -130,14 +130,17 @@ unsigned long Message[32] = {	0xABCDEF12, //4 bytes = 1 word
 								0x9ABCDEF1,
 								0x23456789,
 								0xABCDEF12,
-								0x34567890 };
+								0x34567890 };*/
 
 uint8_t currentMode = 0x09;
 uint8_t nextByte = 0x00;
-int CurrentCount = 0, Word=0, Byte=0, state, packetfinished=0; 
+int Packet_Byte_Count = 0, Buffer_Count = 0, state, packetfinished=0; 
 
 //for Pictures
-#
+FILE * pFile;
+long lSize;
+unsigned char * buffer;
+size_t result;
 
 
 
@@ -162,7 +165,14 @@ uint8_t spi_rcv_data(uint8_t Data) {
 }
 uint8_t getByte() {
 	uint8_t output;
-	if (Byte == 4) {
+	int max = lSize-1;
+	
+	if (Buffer_Count < lSize-1) {
+		output = buffer[Buffer_Count];
+		Buffer_Count++;
+	}
+	
+	/*if (Byte == 4) {
 		Byte = 0;
 		Word++;
 	}
@@ -171,16 +181,16 @@ uint8_t getByte() {
 		Word = 0;
 	}
 	output = (Message[Word] >> ((3-Byte)*8));	//take MSB
-	Byte++;
+	Byte++;*/
 	return output;
 }
 void arrangePacket() {
 	while (digitalRead(dio2pin) == 0) {
-		if (CurrentCount < 256) { //push it in    
+		if (Packet_Byte_Count < 256) { //push it in || max = PacketSize    
 			nextByte = getByte();
-			printf("This is byte %d ------- ", CurrentCount);
+			printf("This is byte %d ------- ", Packet_Byte_Count);
 			spi_send_byte(0x00, nextByte);
-			CurrentCount++;
+			Packet_Byte_Count++;
 		}
 		else {
 		    packetfinished = 1;
@@ -356,7 +366,7 @@ void Tx() {
 	printf("%d", spi_rcv_data(0x3F));
 	if (packetfinished==1) {
 		setMode(RFM98_MODE_FSTX);
-		CurrentCount = 0;
+		Packet_Byte_Count = 0;
 		packetfinished = 0;
 		delay(5000);
 		setMode(RFM98_MODE_TX);
@@ -427,13 +437,10 @@ int setRFM98W(void)
 	Transmitter_Startup();
 	return 0;
 }
-void Message() {
-	FILE * pFile;
-	long lSize;
-	char * buffer;
-	size_t result;
-
-	pFile = fopen ( "myfile.bin" , "rb" );
+void prepBuffer() {
+	const char *filename1 = "Stillpic.jpg";
+	
+	pFile = fopen (filename1, "rb" );
 	if (pFile==NULL) {fputs ("File error",stderr); exit (1);}
 
 	// obtain file size:
@@ -442,36 +449,17 @@ void Message() {
 	rewind (pFile);
 
 	// allocate memory to contain the whole file:
-	buffer = (char*) malloc (sizeof(char)*lSize);
+	buffer = (char*) malloc (sizeof(char)*lSize); //buffer will fill from 0 to lSize - 1
 	if (buffer == NULL) {fputs ("Memory error",stderr); exit (2);}
-
+	
 	// copy the file into the buffer:
 	result = fread (buffer,1,lSize,pFile);
 	if (result != lSize) {fputs ("Reading error",stderr); exit (3);}
-
+	printf("File opened, some byte values: %i %i %i %i\n", buffer[0], buffer[1], buffer[2], buffer[3]);
 	/* the whole file is now loaded in the memory buffer. */
-
-	// terminate
 	fclose (pFile);
-	free (buffer);
-
-/*	FILE *file1;
-
-	unsigned char file_data[100];
-	const char *filename1 = "Stillpic.jpg";
-
-	file1 = fopen(filename1, "rb");
-	if (file1)
-	{
-		//----- FILE EXISTS -----
-		fread(&file_data[0], sizeof(unsigned char), 100, file1);
-
-		printf("File opened, some byte values: %i %i %i %i\n", file_data[0], file_data[1], file_data[2], file_data[3]);
-
-		fclose(file1);
-	}
-	printf("Message done");
-*/	return;
+	//free (buffer);
+	return;
 }
 void takingPicture() { //Use system commands to do that.
 	//go and read up on fork and execute
@@ -479,7 +467,7 @@ void takingPicture() { //Use system commands to do that.
 	system("mkdir BalloonCamera");
 	system("cd BalloonCamera");
 	system("raspistill -w 640 -h 480 -o Stillpic.jpg -q 10");
-	Message();
+	prepBuffer();
 	system("cd");
 	return;
 }
