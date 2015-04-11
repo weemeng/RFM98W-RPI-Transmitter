@@ -93,7 +93,7 @@
 
 //for Transmission
 const int SSpin = 24; 
-const int dio0pin = 21;  WiringPi Pin 
+const int dio0pin = 21;  //WiringPi Pin 
 const int dio1pin = 4; 
 const int dio2pin = 5; 
 const int dio3pin = 22; 
@@ -357,10 +357,11 @@ void Tx() {
 	if (packetfinished==1) {
 		setMode(RFM98_MODE_FSTX);
 		CurrentCount = 0;
+		packetfinished = 0;
 		delay(5000);
 		setMode(RFM98_MODE_TX);
 		state = 4;
-		printf("state transition from 3 to 4");
+		printf("state transition from 3 to 4\n");
 	}
 	break;
   case 4:
@@ -426,10 +427,32 @@ int setRFM98W(void)
 	Transmitter_Startup();
 	return 0;
 }
+void Message() {
+	FILE *file1;
+	unsigned char file_data[100];
+	const char *filename1 = "Stillpic.jpg";
+
+	file1 = fopen(filename1, "rb");
+	if (file1)
+	{
+		//----- FILE EXISTS -----
+		fread(&file_data[0], sizeof(unsigned char), 100, file1);
+
+		printf("File opened, some byte values: %i %i %i %i\n", file_data[0], file_data[1], file_data[2], file_data[3]);
+
+		fclose(file1);
+	}
+	printf("Message done");
+	return;
+}
 void takingPicture() { //Use system commands to do that.
 	//go and read up on fork and execute
 	//meanwhile...
+	system("mkdir BalloonCamera");
+	system("cd BalloonCamera");
 	system("raspistill -w 640 -h 480 -o Stillpic.jpg -q 10");
+	Message();
+	system("cd");
 	return;
 }
 void setup() {
@@ -441,7 +464,7 @@ int main(void) { //int argc, char *argv[]
 	//int i;
 	wiringPiSetup();
 	takingPicture(); //fork out this command
-	Message();
+	//Message();
 	setup();
 	while (1){
 	//for (i=0;i<5;i++)	
