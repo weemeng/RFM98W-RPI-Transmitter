@@ -134,7 +134,7 @@ const int dio5pin = 23;
 
 uint8_t currentMode = 0x09;
 uint8_t nextByte = 0x00;
-int  max_Image_Packet_Count= 0, Image_Packet_Count = 0; Buffer_Count = 0; 
+int  max_Image_Packet_Count= 0, Image_Packet_Count = 0, Buffer_Count = 0; 
 int state, packetfinished = 0, imagefinished = 0;
 int  Packet_Byte_Count= 0; 
 
@@ -171,11 +171,11 @@ uint8_t getByte() {
 		Buffer_Count++;
 	}
 	else
-		output = NULL; //fill with 0's and see how this goes
+		output = 0x00; //fill with 0's and see how this goes
 	return output;
 }
 void arrangePacket() {
-	while (digitalRead(dio2pin) == 0) {
+	while (digitalRead(dio2pin) == 0) { //while Fifo isnt full
 		if (Image_Packet_Count <= max_Image_Packet_Count) { //cause of residual bytes
 			if (Packet_Byte_Count < 256) { //push it in || max = PacketSize    
 				nextByte = getByte();
@@ -325,22 +325,22 @@ void Transmitter_Startup()
 
 void Tx() {
   //dio2pin = FIFO FULL //dio0pin packet sent //dio1pin Fifo Threshold //dio3pin fifioempty
-  if ((digitalRead(dio2pin) == 1) && (digitalRead(dio0pin) == 1)) //FIFO full and packet sent
-	state = 1;
-  else if ((digitalRead(dio2pin) == 1) && (digitalRead(dio0pin) == 0)) //FIFO full and packet not sent
-    state = 2;
-  else if ((digitalRead(dio3pin) == 1) && (digitalRead(dio0pin) == 1)) //FIFO empty and packet sent 
-    state = 3;
-  else if ((digitalRead(dio3pin) == 1) && (digitalRead(dio0pin) == 0)) //FIFO empty and packet not sent 
-    state = 4; 
-  else if ((digitalRead(dio1pin) == 1) && (digitalRead(dio0pin) == 0)) //FIFO level above threshold and packet not sent 
-    state = 5;
-  else if ((digitalRead(dio1pin) == 0) && (digitalRead(dio0pin) == 0)) //FIFO level below threshold and packet not sent 
-    state = 6;
-  else if ((digitalRead(dio1pin) == 1) && (digitalRead(dio0pin) == 1)) //FIFO level above threshold and packet sent 
-    state = 7;	
-  else if ((digitalRead(dio1pin) == 0) && (digitalRead(dio0pin) == 1)) //FIFO level below threshold and packet sent
-    state = 8;	
+  if ((digitalRead(dio2pin) == 1) && (digitalRead(dio0pin) == 1)) 
+	state = 1;	//FIFO full and packet sent
+  else if ((digitalRead(dio2pin) == 1) && (digitalRead(dio0pin) == 0)) 
+    state = 2;	//FIFO full and packet not sent
+  else if ((digitalRead(dio3pin) == 1) && (digitalRead(dio0pin) == 1)) 
+    state = 3;	//FIFO empty and packet sent 
+  else if ((digitalRead(dio3pin) == 1) && (digitalRead(dio0pin) == 0)) 
+    state = 4; 	//FIFO empty and packet not sent 
+  else if ((digitalRead(dio1pin) == 1) && (digitalRead(dio0pin) == 0)) 
+    state = 5;	//FIFO level above threshold and packet not sent 
+  else if ((digitalRead(dio1pin) == 0) && (digitalRead(dio0pin) == 0)) 
+    state = 6;	//FIFO level below threshold and packet not sent 
+  else if ((digitalRead(dio1pin) == 1) && (digitalRead(dio0pin) == 1)) 
+    state = 7;	//FIFO level above threshold and packet sent 
+  else if ((digitalRead(dio1pin) == 0) && (digitalRead(dio0pin) == 1)) 
+    state = 8;	//FIFO level below threshold and packet sent
 
   switch (state) {
   case 1:
@@ -402,7 +402,16 @@ void Tx() {
 	break;
   case 6:
 	printf("Case 6 Triggered\n");
-	arrangePacket();
+	if (packetfinished != 1) {
+		arrangePacket();
+	}
+	else {
+		while (digitalRead(dio3pin) != 1) {} //wait until FIFO Empty
+		if (digitalRead(dio0pin) == 1) {
+			state = 3
+			printf("state transition from 6 to 3\n");
+		}	
+	}
 	if (digitalRead(dio2pin) == 1) {
 		state = 2; //tentatively should go to 2 but can go to 5
 		printf("state transition from 6 to 2\n");	
@@ -489,6 +498,9 @@ int main(void) { //int argc, char *argv[]
 	while (1){
 	//for (i=0;i<5;i++)	
 		Tx();   
+		printf("This is the packetCount = %d\n", Image_Packet_Count);
+		if (Image_Packet_Count > max_Image_Packet_Count) 
+			break;
 	}
 	return 0;
 }
