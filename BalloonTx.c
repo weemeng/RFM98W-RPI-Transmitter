@@ -134,15 +134,15 @@ const int dio5pin = 23;
 
 uint8_t currentMode = 0x09;
 uint8_t nextByte = 0x00;
-int Packet_Byte_Count = 0, Buffer_Count = 0, state, packetfinished=0; 
+int  max_Image_Packet_Count= 0, Image_Packet_Count = 0; Buffer_Count = 0; 
+int state, packetfinished = 0, imagefinished = 0;
+int  Packet_Byte_Count= 0; 
 
 //for Pictures
 FILE * pFile;
 long lSize;
 unsigned char * buffer;
 size_t result;
-
-
 
 void spi_send_byte(uint8_t Data1, uint8_t Data2) { 
     digitalWrite(24, LOW);
@@ -165,38 +165,35 @@ uint8_t spi_rcv_data(uint8_t Data) {
 }
 uint8_t getByte() {
 	uint8_t output;
-	int max = lSize-1;
 	
 	if (Buffer_Count < lSize-1) {
 		output = buffer[Buffer_Count];
 		Buffer_Count++;
 	}
-	
-	/*if (Byte == 4) {
-		Byte = 0;
-		Word++;
-	}
-	if (Word == 32) {
-		printf("New Message\n");
-		Word = 0;
-	}
-	output = (Message[Word] >> ((3-Byte)*8));	//take MSB
-	Byte++;*/
+	else
+		output = NULL; //fill with 0's and see how this goes
 	return output;
 }
 void arrangePacket() {
 	while (digitalRead(dio2pin) == 0) {
-		if (Packet_Byte_Count < 256) { //push it in || max = PacketSize    
-			nextByte = getByte();
-			printf("This is byte %d ------- ", Packet_Byte_Count);
-			spi_send_byte(0x00, nextByte);
-			Packet_Byte_Count++;
+		if (Image_Packet_Count <= max_Image_Packet_Count) { //cause of residual bytes
+			if (Packet_Byte_Count < 256) { //push it in || max = PacketSize    
+				nextByte = getByte();
+				printf("This is byte %d ------- ", Packet_Byte_Count);
+				spi_send_byte(0x00, nextByte);
+				Packet_Byte_Count++;
+			}
+			else {
+				packetfinished = 1;
+				Image_Packet_Count++;
+				printf("Packet finished sending\n");//shouldn't come here
+				break;
+			}
 		}
 		else {
-		    packetfinished = 1;
-			printf("Packet finished sending\n");//shouldn't come here
-			break;
-		}
+			imagefinished = 1;
+			printf("Image finished sending\n");
+		}	
 	}
 }
 /*void dio1interrupt () { 	//FIFO Threshold FALLING
@@ -364,6 +361,12 @@ void Tx() {
 	printf("End of test package\n");
 	delay(500);
 	printf("%d", spi_rcv_data(0x3F));
+	if (imagefinished == 1) {
+		Image_Packet_Count = 0;
+		Buffer_Count = 0;
+		max_Image_Packet_Count = 0;
+		//prepare next image
+	}
 	if (packetfinished==1) {
 		setMode(RFM98_MODE_FSTX);
 		Packet_Byte_Count = 0;
@@ -449,7 +452,7 @@ void prepBuffer() {
 	rewind (pFile);
 
 	// allocate memory to contain the whole file:
-	buffer = (char*) malloc (sizeof(char)*lSize); //buffer will fill from 0 to lSize - 1
+	buffer = (unsigned char*) malloc (sizeof(unsigned char)*lSize); //buffer will fill from 0 to lSize - 1
 	if (buffer == NULL) {fputs ("Memory error",stderr); exit (2);}
 	
 	// copy the file into the buffer:
@@ -459,6 +462,7 @@ void prepBuffer() {
 	/* the whole file is now loaded in the memory buffer. */
 	fclose (pFile);
 	//free (buffer);
+	max_Image_Packet_Count = lSize/256;
 	return;
 }
 void takingPicture() { //Use system commands to do that.
