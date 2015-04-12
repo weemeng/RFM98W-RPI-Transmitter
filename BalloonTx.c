@@ -1,12 +1,13 @@
 //RPI for RFM98W
 //by Ng Wee Meng
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <wiringPi.h>
-#include <wiringPiSPI.h>
-#include <stdint.h>
-#include <string.h>
+#include <stdio.h> 			// fprintf
+#include <stdlib.h>			// exit()
+#include <wiringPi.h>		// GPIO
+#include <wiringPiSPI.h>	// wiringPiSPIDataRW
+#include <stdint.h>			
+#include <string.h>			// image
+#include <unistd.h>			// fork and execute
 //#include <fcntl.h>
 //#include <sys/ioctl.h>
 //#include <linux/spi/spidev.h>
@@ -266,11 +267,11 @@ void SetFSKMod()
   setMode(RFM98_MODE_SLEEP);
   spi_send_byte(REG_BITRATEMSB, 0x00);
   spi_send_byte(REG_BITRATELSB, 0x6B);
-  spi_send_byte(REG_FDEVMSB, 0x04);
-  spi_send_byte(REG_FDEVLSB, 0x00);
+  spi_send_byte(REG_FDEVMSB, 0x09);
+  spi_send_byte(REG_FDEVLSB, 0x99);
   spi_send_byte(REG_FRFMSB, 0x6C); //exact at 433Mhz
-  spi_send_byte(REG_FRFMID, 0x40);
-  spi_send_byte(REG_FRFLSB, 0x00);  
+  spi_send_byte(REG_FRFMID, 0x9C);
+  spi_send_byte(REG_FRFLSB, 0x8E);  
   printf("FSK Mode Set\n");
   cntMode = spi_rcv_data(REG_OPMODE);
   printf("Mode = "); 
@@ -450,9 +451,9 @@ int setRFM98W(void)
 	return 0;
 }
 void prepBuffer() {
-	const char *filename1 = "Stillpic.jpg";
-	
-	pFile = fopen (filename1, "rb" );
+	char *filename = "Stillpic.jpg";
+	// change to filename string so can do increment of 5 everytime
+	pFile = fopen (filename, "rb" );
 	if (pFile==NULL) {fputs ("File error",stderr); exit (1);}
 
 	// obtain file size:
@@ -474,32 +475,50 @@ void prepBuffer() {
 	max_Image_Packet_Count = lSize/256;
 	return;
 }
-void takingPicture() { //Use system commands to do that.
+/*void takingPicture() { //Use system commands to do that.
 	//go and read up on fork and execute
 	//meanwhile...
 	system("mkdir BalloonCamera");
 	system("cd BalloonCamera");
 	system("raspistill -w 640 -h 480 -o Stillpic.jpg -q 10");
-	prepBuffer();
+	//prepBuffer();
 	system("cd");
 	return;
-}
+}*/
 void setup() {
   printf("Balloon Initializing...\n");
   setRFM98W();
   printf("Setup Complete\n");
 }
+void forkAndExecute (const char *path, char *const args[]) {
+	int pid = fork();               //fork
+	if (pid == -1) {
+		puts("fork error");         //check for fork failure
+		return;
+	}
+	if (pid != 0) return;
+
+	// If pid == 0, this is the child process.
+	if (execvp(path, args) == -1) { //1st arg = point to filename associated with file being executed; 2nd arg = argument list
+		puts("execvp error");
+	}
+} 
 int main(void) { //int argc, char *argv[]
 	//int i;
 	wiringPiSetup();
-	takingPicture(); //fork out this command
+	char *const args[] = {"raspistill", "-o", "Stillpicture_%d.jpg", "-w", "640","-h", "480","-tl", "60000", "-t", "7200000"}; 
+	//takingPicture(); //fork out this command
+	forkAndExecute("raspistill", args);
+	//forking in progress - need to put prepbuffer() somewhere...
 	//Message();
+	delay(1000); //don't know if buffer is prepared fast enough
 	setup();
 	while (1){
 	//for (i=0;i<5;i++)	
 		Tx();   
 		printf("This is the packetCount = %d\n", Image_Packet_Count);
 		if (Image_Packet_Count > max_Image_Packet_Count) 
+			//prepBuffer(); get the string to change filename
 			break;
 	}
 	return 0;
