@@ -1,13 +1,12 @@
 //RPI for RFM98W
 //by Ng Wee Meng
 
-#include <stdio.h> 			// fprintf
-#include <stdlib.h>			// exit()
-#include <wiringPi.h>		// GPIO
-#include <wiringPiSPI.h>	// wiringPiSPIDataRW
-#include <stdint.h>			
-#include <string.h>			// image
-#include <unistd.h>			// fork and execute
+#include <stdio.h>
+#include <stdlib.h>
+#include <wiringPi.h>
+#include <wiringPiSPI.h>
+#include <stdint.h>
+#include <string.h>
 //#include <fcntl.h>
 //#include <sys/ioctl.h>
 //#include <linux/spi/spidev.h>
@@ -22,9 +21,10 @@
 #define REG_FRFMSB					0x06	//0x6C
 #define REG_FRFMID					0x07	//0x40
 #define REG_FRFLSB					0x08	//0x00
-#define REG_PACONFIG				0x09	//0x4B 01001011
+
+#define REG_PACONFIG				0x09	//0x4B 0-100-1011 //0xCF 11001111
 #define REG_PARAMP					0x0A	//0x09 00001001
-#define REG_OCP						0x0B	//0x0B 00001011
+#define REG_OCP						0x0B	//0x0B 00001011 //0x2B
 
 // for Receiver
 /*
@@ -77,7 +77,7 @@
 #define REG_DIOMAPPING2				0x41	//0x31 00-11-000-1
 #define REG_REGVERSION				0x42	//read
 //#define REG_PLLHOP				0x44
-//#define REG_PADAC					0x4D	//00000100 //regular boost
+#define REG_PADAC				0x4D	//0x07 00000100 //regular boost
 //#define REG_BITRATEFRAC			0x5D	//super minute accuracy which can be accounted for by the doppler shift
 #define REG_AGCREFLF				0x61
 #define REG_AGCTHRESHLF1			0x62
@@ -100,14 +100,11 @@ const int dio2pin = 5;
 const int dio3pin = 22; 
 const int dio4pin = 26; 
 const int dio5pin = 23; 
-/*unsigned long Message[32] = {	0xABCDEF12, //4 bytes = 1 word
-								0x3456789A,
-								0xBCDEF123,
-								0x456789AB,
-								0xCDEF1234,
-								0x56789ABC,
-								0xDEF12345,
-								0x6789ABCD,
+unsigned long Message[64] = {					0x12345678,
+								0x9ABCDEF1,
+								0x23456789,
+								0xABCDEF12,
+								0x34567890,
 								0xEF123456,
 								0x789ABCDE,
 								0xF1234567,
@@ -116,13 +113,7 @@ const int dio5pin = 23;
 								0x9ABCDEF1,
 								0x23456789,
 								0xABCDEF12,
-								0x3456789A,
-								0xBCDEF123,
-								0x456789AB,
-								0xCDEF1234,
-								0x56789ABC,
-								0xDEF12345,
-								0x6789ABCD,
+								0x34567890,
 								0xEF123456,
 								0x789ABCDE,
 								0xF1234567,
@@ -131,14 +122,57 @@ const int dio5pin = 23;
 								0x9ABCDEF1,
 								0x23456789,
 								0xABCDEF12,
-								0x34567890 };*/
+								0x34567890,
+								0xEF123456,
+								0x789ABCDE,
+								0xF1234567,
+								0x89ABCDEF,
+								0x12345678,
+								0x9ABCDEF1,
+								0x23456789,
+								0xABCDEF12,
+								0x34567890,
+								0xEF123456,
+								0x789ABCDE,
+								0xF1234567,
+								0x89ABCDEF,
+								0x12345678,
+								0x9ABCDEF1,
+								0x23456789,
+								0xABCDEF12,
+								0x34567890,
+								0xEF123456,
+								0x789ABCDE,
+								0xF1234567,
+								0x89ABCDEF,
+								0x12345678,
+								0x9ABCDEF1,
+								0x23456789,
+								0xABCDEF12,
+								0x34567890, 
+								0xEF123456,
+								0x789ABCDE,
+								0xF1234567,
+								0x89ABCDEF,
+								0x12345678,
+								0x9ABCDEF1,
+								0x23456789,
+								0xABCDEF12,
+								0x34567890,
+								0xEF123456,
+								0x789ABCDE,
+								0xF1234567,
+								0x89ABCDEF,
+								0x12345678};
 
 uint8_t currentMode = 0x09;
 uint8_t nextByte = 0x00;
+int plusone = 1;
 int  max_Image_Packet_Count= 0, Image_Packet_Count = 0, Buffer_Count = 0; 
 int state, packetfinished = 0, imagefinished = 0;
 int  Packet_Byte_Count= 0; 
-
+int Word = 0, Byte = 0;
+uint8_t Redundancy = 0x00;
 //for Pictures
 FILE * pFile;
 long lSize;
@@ -166,7 +200,6 @@ uint8_t spi_rcv_data(uint8_t Data) {
 }
 uint8_t getByte() {
 	uint8_t output;
-	
 	if (Buffer_Count < lSize-1) {
 		output = buffer[Buffer_Count];
 		Buffer_Count++;
@@ -174,20 +207,56 @@ uint8_t getByte() {
 	else
 		output = 0x00; //fill with 0's and see how this goes
 	return output;
+
+/*
+	
+*/
+}
+void sendEndImagePacket () {
+	int endpackcount = 0;
+	uint8_t endoutput;
+	for (endpackcount = 0; endpackcount < 63; endpackcount++) {
+		if (Byte == 4) {
+			Byte = 0;
+			Word++;
+		}
+		if ((Word == 15) && (Byte == 3))  {
+			printf("New Message");
+			Word = 0;
+			Byte = 0;
+		}
+		endoutput = (Message[Word]>>((3-Byte)*8)); //fill with 0's and see how this goes
+		Byte++;
+		spi_send_byte(0x00, endoutput);
+		//might need to reset the endpackcount	
+	}
+	
 }
 void arrangePacket() {
 	while (digitalRead(dio2pin) == 0) { //while Fifo isnt full
 		if (Image_Packet_Count <= max_Image_Packet_Count) { //cause of residual bytes
-			if (Packet_Byte_Count < 256) { //push it in || max = PacketSize    
+			if (Packet_Byte_Count < 62) { //push it in || max = PacketSize    
 				nextByte = getByte();
 				printf("This is byte %d ------- ", Packet_Byte_Count);
+//				if (Packet_Byte_Count == 62)
+//					nextByte = nextByte + plusone;
+//				plusone++;
 				spi_send_byte(0x00, nextByte);
+//				delay(10); //might remove this when going higher freq
 				Packet_Byte_Count++;
 			}
 			else {
+				spi_send_byte(0x00, Redundancy); //byte 62
+				spi_send_byte(0x00, (unsigned int) Image_Packet_Count); //byte 63
+				Redundancy++;
 				packetfinished = 1;
-				Image_Packet_Count++;
-				printf("Packet finished sending\n");//shouldn't come here
+				if (Redundancy == 5) {
+					Image_Packet_Count++;
+					Redundancy = 0;
+				}
+				else
+					Buffer_Count = Buffer_Count - 62;
+				printf("Packet finished sending\n");
 				break;
 			}
 		}
@@ -265,10 +334,10 @@ void SetFSKMod()
   uint8_t cntMode;
   printf("Setting FSK Mode\n");
   setMode(RFM98_MODE_SLEEP);
-  spi_send_byte(REG_BITRATEMSB, 0x00);
-  spi_send_byte(REG_BITRATELSB, 0x6B);
-  spi_send_byte(REG_FDEVMSB, 0x09);
-  spi_send_byte(REG_FDEVLSB, 0x99);
+  spi_send_byte(REG_BITRATEMSB, 0x68); //00
+  spi_send_byte(REG_BITRATELSB, 0x2B); //6B
+  spi_send_byte(REG_FDEVMSB, 0x00); //9
+  spi_send_byte(REG_FDEVLSB, 0x31); //99
   spi_send_byte(REG_FRFMSB, 0x6C); //exact at 433Mhz
   spi_send_byte(REG_FRFMID, 0x9C);
   spi_send_byte(REG_FRFLSB, 0x8E);  
@@ -286,9 +355,9 @@ void Transmitter_Startup()
   setMode(RFM98_MODE_STANDBY);
   
   //transmitter settings
-  spi_send_byte(REG_PACONFIG, 0x4B);
+  spi_send_byte(REG_PACONFIG, 0xCF);
   spi_send_byte(REG_PARAMP, 0x09);
-  spi_send_byte(REG_OCP, 0x0B);
+  spi_send_byte(REG_OCP, 0x2B);
   
   //receiver settings
 /*  spi_send_byte(REG_LNA, 0xC0);
@@ -308,15 +377,15 @@ void Transmitter_Startup()
   spi_send_byte(REG_PREAMBLELSB, 0x64);
   spi_send_byte(REG_SYNCCONFIG, 0x18);
   spi_send_byte(REG_SYNCVALUE1, 0x48);
-  spi_send_byte(REG_PACKETCONFIG1, 0x00);
+  spi_send_byte(REG_PACKETCONFIG1, 0x10);
   spi_send_byte(REG_PACKETCONFIG2, 0x40);
-  spi_send_byte(REG_PAYLOADLENGTH, 0xFF);
+  spi_send_byte(REG_PAYLOADLENGTH, 0x40); //FF
   spi_send_byte(REG_FIFOTHRESH, 0x85);
   spi_send_byte(REG_IMAGECAL, 0xC2); 
   spi_send_byte(REG_DIOMAPPING1, 0x00);
   spi_send_byte(REG_DIOMAPPING2, 0x31);
 //  spi_send_byte(REG_PLLHOP, 0x00);
-//  spi_send_byte(REG_PADAC, 0x04);
+  spi_send_byte(REG_PADAC, 0x07);
   //printf(digitalRead(dio5pin)); 	//check these values
   //printf(digitalRead(dio0pin));	//check these values
   setMode(RFM98_MODE_FSTX);
@@ -360,9 +429,11 @@ void Tx() {
 	printf("Case 3 Triggered\n");	
 	//prepare next message and reset the packetsent (by exiting Tx)
 	printf("End of test package\n");
-	delay(500);
 	printf("%d", spi_rcv_data(0x3F));
 	if (imagefinished == 1) {
+		setMode(RFM98_MODE_FSTX);
+		setMode(RFM98_MODE_TX);
+		sendEndImagePacket();
 		Image_Packet_Count = 0;
 		Buffer_Count = 0;
 		max_Image_Packet_Count = 0;
@@ -372,7 +443,7 @@ void Tx() {
 		setMode(RFM98_MODE_FSTX);
 		Packet_Byte_Count = 0;
 		packetfinished = 0;
-		delay(5000);
+		delay(200);
 		setMode(RFM98_MODE_TX);
 		state = 4;
 		printf("state transition from 3 to 4\n");
@@ -409,7 +480,7 @@ void Tx() {
 	else {
 		while (digitalRead(dio3pin) != 1) {} //wait until FIFO Empty
 		if (digitalRead(dio0pin) == 1) {
-			state = 3
+			state = 3;
 			printf("state transition from 6 to 3\n");
 		}	
 	}
@@ -443,17 +514,18 @@ int setRFM98W(void)
 	pinMode(dio4pin, INPUT);
 	pinMode(dio5pin, INPUT);
 	//setInterrupts();
-	if ((pisetupbit = wiringPiSPISetup(0, 8000000))<0)
+	if ((pisetupbit = wiringPiSPISetup(0, 10000000))<0)
 		return -1;
 	SetFSKMod();
 	//testCommunication();
 	Transmitter_Startup();
 	return 0;
 }
+
 void prepBuffer() {
-	char *filename = "Stillpic.jpg";
-	// change to filename string so can do increment of 5 everytime
-	pFile = fopen (filename, "rb" );
+	const char *filename1 = "Stillpictest.jpg"; //need to change this filename string
+	
+	pFile = fopen (filename1, "rb" );
 	if (pFile==NULL) {fputs ("File error",stderr); exit (1);}
 
 	// obtain file size:
@@ -472,53 +544,36 @@ void prepBuffer() {
 	/* the whole file is now loaded in the memory buffer. */
 	fclose (pFile);
 	//free (buffer);
-	max_Image_Packet_Count = lSize/256;
+	max_Image_Packet_Count = lSize/62; //256
 	return;
 }
-/*void takingPicture() { //Use system commands to do that.
+void takingPicture() { //Use system commands to do that.
 	//go and read up on fork and execute
 	//meanwhile...
 	system("mkdir BalloonCamera");
-	system("cd BalloonCamera");
-	system("raspistill -w 640 -h 480 -o Stillpic.jpg -q 10");
-	//prepBuffer();
+	system("cd BalloonCamera"); 										//doesnt work somehow
+	system("raspistill -w 180 -h 160 -e jpg -o Stillpic.jpg -q 10");
+	prepBuffer();
 	system("cd");
 	return;
-}*/
+}
 void setup() {
   printf("Balloon Initializing...\n");
   setRFM98W();
   printf("Setup Complete\n");
 }
-void forkAndExecute (const char *path, char *const args[]) {
-	int pid = fork();               //fork
-	if (pid == -1) {
-		puts("fork error");         //check for fork failure
-		return;
-	}
-	if (pid != 0) return;
-
-	// If pid == 0, this is the child process.
-	if (execvp(path, args) == -1) { //1st arg = point to filename associated with file being executed; 2nd arg = argument list
-		puts("execvp error");
-	}
-} 
 int main(void) { //int argc, char *argv[]
 	//int i;
 	wiringPiSetup();
-	char *const args[] = {"raspistill", "-o", "Stillpicture_%d.jpg", "-w", "640","-h", "480","-tl", "60000", "-t", "7200000"}; 
-	//takingPicture(); //fork out this command
-	forkAndExecute("raspistill", args);
-	//forking in progress - need to put prepbuffer() somewhere...
+	takingPicture(); //fork out this command
 	//Message();
-	delay(1000); //don't know if buffer is prepared fast enough
 	setup();
 	while (1){
 	//for (i=0;i<5;i++)	
 		Tx();   
 		printf("This is the packetCount = %d\n", Image_Packet_Count);
+		printf("This is the max packetCount = %d\n", max_Image_Packet_Count);
 		if (Image_Packet_Count > max_Image_Packet_Count) 
-			//prepBuffer(); get the string to change filename
 			break;
 	}
 	return 0;
