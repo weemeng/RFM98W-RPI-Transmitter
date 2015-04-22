@@ -176,7 +176,7 @@ FILE * pFile;
 long lSize;
 unsigned char * buffer;
 size_t result;
-uint8_t file_byte_size = 0x000000;
+unsigned char file_byte_size[3] = 0x00;
 
 void spi_send_byte(uint8_t Data1, uint8_t Data2) { 
     digitalWrite(24, LOW);
@@ -214,13 +214,7 @@ void arrangePacket() {
 }
 void sendInitialisingBits() { //send initial sequence including 
 	while (digitalRead(dio2pin) == 0) { //while Fifo isnt full
-		file_byte_size = (uint8_t) lSize;
-		printf("This is byte %x ------- \n", file_byte_size[0]);
-		printf("This is byte %x ------- \n", file_byte_size[1]);
-		printf("This is byte %x ------- \n", file_byte_size[2]);
-		printf("This is byte %x ------- \n", file_byte_size[3]);
-		printf("This is byte %x ------- \n", file_byte_size[4]);
-		printf("This is byte %x ------- \n", file_byte_size[5]);
+		file_byte_size = lSize;
 		spi_send_byte(0x00, file_byte_size);
 		
 		printf("Sending Initialising Bytes...\n");
