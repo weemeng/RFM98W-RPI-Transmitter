@@ -64,7 +64,7 @@
 #define REG_PACKETCONFIG1			0x30	//0
 
 #define REG_PACKETCONFIG2			0x31	//0x40
-//#define REG_PAYLOADLENGTH			0x32	//change to 7FF - 2047 bytes
+#define REG_PAYLOADLENGTH			0x32	//change to 7FF - 2047 bytes
 #define REG_FIFOTHRESH				0x35    //0x85 //not 0xBC 1011 1100 
 
 //	Sequencer
@@ -176,7 +176,7 @@ FILE * pFile;
 long lSize;
 unsigned char * buffer;
 size_t result;
-
+uint8_t file_byte_size = 0x000000;
 
 void spi_send_byte(uint8_t Data1, uint8_t Data2) { 
     digitalWrite(24, LOW);
@@ -210,6 +210,22 @@ void arrangePacket() {
 			printf("Image finished sending\n");
 			break;
 		}
+	}
+}
+void sendInitialisingBits() { //send initial sequence including 
+	while (digitalRead(dio2pin) == 0) { //while Fifo isnt full
+		file_byte_size = (uint8_t) lSize;
+		printf("This is byte %x ------- \n", file_byte_size[0]);
+		printf("This is byte %x ------- \n", file_byte_size[1]);
+		printf("This is byte %x ------- \n", file_byte_size[2]);
+		printf("This is byte %x ------- \n", file_byte_size[3]);
+		printf("This is byte %x ------- \n", file_byte_size[4]);
+		printf("This is byte %x ------- \n", file_byte_size[5]);
+		spi_send_byte(0x00, file_byte_size);
+		
+		printf("Sending Initialising Bytes...\n");
+		delay(3000);
+		break;
 	}
 }
 void setMode(uint8_t newMode)
@@ -311,7 +327,7 @@ void Transmitter_Startup()
   spi_send_byte(REG_OSC, 0x07); //@standby Clkout turned off
   spi_send_byte(REG_PREAMBLEMSB, 0x00); 
   spi_send_byte(REG_PREAMBLELSB, 0x64);
-  spi_send_byte(REG_SYNCCONFIG, 0x1F);
+  spi_send_byte(REG_SYNCCONFIG, 0x17);
   spi_send_byte(REG_SYNCVALUE1, 0x28);
   spi_send_byte(REG_SYNCVALUE2, 0x39);
   spi_send_byte(REG_SYNCVALUE3, 0x4A);
@@ -377,7 +393,7 @@ void Tx() {
 	if (imagefinished == 1) {
 		setMode(RFM98_MODE_FSTX);
 		imagefinished = 0;
-		sendEndImagePacket();
+		//sendEndImagePacket();
 		Buffer_Count = 0;
 		//prepare next image
 		setMode(RFM98_MODE_TX);
@@ -447,7 +463,7 @@ void Tx() {
 	printf("state transition from 8 to 3\n");
 	break;
   }
-}*/
+}
 int setRFM98W(void)
 {
 	// initialize the pins
@@ -490,7 +506,7 @@ void prepBuffer() {
 	/* the whole file is now loaded in the memory buffer. */
 	fclose (pFile);
 	//free (buffer);
-	max_Image_Packet_Count = lSize/62; //256
+	//max_Image_Packet_Count = lSize/62; //256
 	return;
 }
 void takingPicture() { //Use system commands to do that.
@@ -514,6 +530,7 @@ int main(void) { //int argc, char *argv[]
 	takingPicture(); //fork out this command
 	//Message();
 	setup();
+	sendInitialisingBits;
 	while (1){
 	//for (i=0;i<5;i++)	
 		Tx();   
