@@ -52,7 +52,7 @@
 // Packet Handling
 #define REG_PREAMBLEMSB				0x25 	//0x00
 #define REG_PREAMBLELSB				0x26 	//0x64 send 100 preamble
-#define REG_SYNCCONFIG				0x27	//0x18 00011000
+#define REG_SYNCCONFIG				0x27	//0x18 00011000 00011111
 #define REG_SYNCVALUE1				0x28	//0x48
 #define REG_SYNCVALUE2				0x29
 #define REG_SYNCVALUE3				0x2A
@@ -61,8 +61,9 @@
 #define REG_SYNCVALUE6				0x2D
 #define REG_SYNCVALUE7				0x2E
 #define REG_SYNCVALUE8				0x2F
-#define REG_PACKETCONFIG1			0x30	//0x00 00000000
-#define REG_PACKETCONFIG2			0x31	//0x40 01000-000//111
+#define REG_PACKETCONFIG1			0x30	//0
+
+#define REG_PACKETCONFIG2			0x31	//0x40
 #define REG_PAYLOADLENGTH			0x32	//change to 7FF - 2047 bytes
 #define REG_FIFOTHRESH				0x35    //0x85 //not 0xBC 1011 1100 
 
@@ -74,7 +75,7 @@
 #define REG_IRQFLAGS1				0x3E	//trigger
 #define REG_IRQFLAGS2				0x3F	//trigger
 #define REG_DIOMAPPING1				0x40	//00-00-00-00
-#define REG_DIOMAPPING2				0x41	//0x31 00-11-000-1
+#define REG_DIOMAPPING2				0x41	//11-00-000-1
 #define REG_REGVERSION				0x42	//read
 //#define REG_PLLHOP				0x44
 #define REG_PADAC				0x4D	//0x07 00000100 //regular boost
@@ -168,16 +169,15 @@ unsigned long Message[64] = {					0x12345678,
 uint8_t currentMode = 0x09;
 uint8_t nextByte = 0x00;
 int plusone = 1;
-int  max_Image_Packet_Count= 0, Image_Packet_Count = 0, Buffer_Count = 0; 
-int state, packetfinished = 0, imagefinished = 0;
-int  Packet_Byte_Count= 0; 
-int Word = 0, Byte = 0;
-uint8_t Redundancy = 0x00;
+int Image_Packet_Count = 0, Buffer_Count = 0; 
+int state, imagefinished = 0;
 //for Pictures
 FILE * pFile;
 long lSize;
 unsigned char * buffer;
 size_t result;
+uint32_t file_byte_size[0];
+int begin = 1;
 
 void spi_send_byte(uint8_t Data1, uint8_t Data2) { 
     digitalWrite(24, LOW);
@@ -198,84 +198,38 @@ uint8_t spi_rcv_data(uint8_t Data) {
 	digitalWrite(24, HIGH);
 	return rxbuf[1];
 }
-uint8_t getByte() {
-	uint8_t output;
-	if (Buffer_Count < lSize-1) {
-		output = buffer[Buffer_Count];
-		Buffer_Count++;
-	}
-	else
-		output = 0x00; //fill with 0's and see how this goes
-	return output;
-
-/*
-	
-*/
-}
-void sendEndImagePacket () {
-	int endpackcount = 0;
-	uint8_t endoutput;
-	for (endpackcount = 0; endpackcount < 63; endpackcount++) {
-		if (Byte == 4) {
-			Byte = 0;
-			Word++;
-		}
-		if ((Word == 15) && (Byte == 3))  {
-			printf("New Message");
-			Word = 0;
-			Byte = 0;
-		}
-		endoutput = (Message[Word]>>((3-Byte)*8)); //fill with 0's and see how this goes
-		Byte++;
-		spi_send_byte(0x00, endoutput);
-		//might need to reset the endpackcount	
-	}
-	
-}
 void arrangePacket() {
 	while (digitalRead(dio2pin) == 0) { //while Fifo isnt full
-		if (Image_Packet_Count <= max_Image_Packet_Count) { //cause of residual bytes
-			if (Packet_Byte_Count < 254) { //push it in || max = PacketSize    
-				nextByte = getByte();
-				printf("This is byte %d ------- ", Packet_Byte_Count);
-//				if (Packet_Byte_Count == 62)
-//					nextByte = nextByte + plusone;
-//				plusone++;
-				spi_send_byte(0x00, nextByte);
-//				delay(10); //might remove this when going higher freq
-				Packet_Byte_Count++;
-			}
-			else {
-				spi_send_byte(0x00, Redundancy); //byte 254
-				spi_send_byte(0x00, (unsigned int) Image_Packet_Count); //byte 255
-				Redundancy++;
-				packetfinished = 1;
-				if (Redundancy == 1) {
-					Image_Packet_Count++;
-					Redundancy = 0;
-				}
-				else
-					Buffer_Count = Buffer_Count - 253;
-				printf("Packet finished sending\n");
-				break;
-			}
+		if (Buffer_Count < lSize) {
+			nextByte = buffer[Buffer_Count];
+			printf("This is byte %d ------- ", Buffer_Count);
+			spi_send_byte(0x00, nextByte);
+			Buffer_Count++;
 		}
 		else {
 			imagefinished = 1;
 			printf("Image finished sending\n");
-		}	
+			break;
+		}
 	}
 }
-/*void dio1interrupt () { 	//FIFO Threshold FALLING
-  printf("Running Dio1 interrupt\n");
-  printf("Fifo Threshold interrupt\n");
-  arrangePacket();				//might have to disable interrupt here
-  return;
-}*/
-/*void setInterrupts() {
-  wiringPiISR (dio1pin, INT_EDGE_FALLING,  &dio1interrupt);
-  printf("Interrupts set up\n");
-}*/
+void sendInitialisingBits() { //send initial sequence including 
+	printf("GOT HERE!!!\n");
+	while (digitalRead(dio2pin) == 0) { //while Fifo isnt full
+		* file_byte_size = (uint32_t) lSize;
+		spi_send_byte(0x00, file_byte_size[0]>>16); //24bit length
+		spi_send_byte(0x00, file_byte_size[0]>>8);
+		spi_send_byte(0x00, file_byte_size[0]);
+		printf("GOT HERE2!!!\n");
+		printf("Actual Size is %ld\n", lSize);
+		printf("Actual Size is %x\n", (uint8_t) lSize);
+		printf("Actual Size is %x\n", (uint16_t) lSize);
+		printf("Sending Initialising Bytes...\n");
+		//delay(3000);
+		break;
+	}
+	return;
+}
 void setMode(uint8_t newMode)
 {
   if(newMode == currentMode)
@@ -334,10 +288,10 @@ void SetFSKMod()
   uint8_t cntMode;
   printf("Setting FSK Mode\n");
   setMode(RFM98_MODE_SLEEP);
-  spi_send_byte(REG_BITRATEMSB, 0x0A); //00
-  spi_send_byte(REG_BITRATELSB, 0x00); //6B
+  spi_send_byte(REG_BITRATEMSB, 0x68); //00
+  spi_send_byte(REG_BITRATELSB, 0x2B); //6B
   spi_send_byte(REG_FDEVMSB, 0x00); //9
-  spi_send_byte(REG_FDEVLSB, 0xE5); //99
+  spi_send_byte(REG_FDEVLSB, 0x31); //99
   spi_send_byte(REG_FRFMSB, 0x6C); //exact at 433Mhz
   spi_send_byte(REG_FRFMID, 0x9C);
   spi_send_byte(REG_FRFLSB, 0x8E);  
@@ -384,9 +338,9 @@ void Transmitter_Startup()
   spi_send_byte(REG_SYNCVALUE6, 0x7D);
   spi_send_byte(REG_SYNCVALUE7, 0x8E);
   spi_send_byte(REG_SYNCVALUE8, 0x9F);
-  spi_send_byte(REG_PACKETCONFIG1, 0x50);
+  spi_send_byte(REG_PACKETCONFIG1, 0x00);
   spi_send_byte(REG_PACKETCONFIG2, 0x40);
-  spi_send_byte(REG_PAYLOADLENGTH, 0xFF); //FF
+  spi_send_byte(REG_PAYLOADLENGTH, 0x00); //unlimited
   spi_send_byte(REG_FIFOTHRESH, 0x85);
   spi_send_byte(REG_IMAGECAL, 0xC2); 
   spi_send_byte(REG_DIOMAPPING1, 0x00);
@@ -401,6 +355,7 @@ void Transmitter_Startup()
 }
 
 void Tx() {
+	
   //dio2pin = FIFO FULL //dio0pin packet sent //dio1pin Fifo Threshold //dio3pin fifioempty
   if ((digitalRead(dio2pin) == 1) && (digitalRead(dio0pin) == 1)) 
 	state = 1;	//FIFO full and packet sent
@@ -439,26 +394,23 @@ void Tx() {
 	printf("%d", spi_rcv_data(0x3F));
 	if (imagefinished == 1) {
 		setMode(RFM98_MODE_FSTX);
-		setMode(RFM98_MODE_TX);
-		sendEndImagePacket();
-		Image_Packet_Count = 0;
+		imagefinished = 0;
+		//sendEndImagePacket();
 		Buffer_Count = 0;
-		max_Image_Packet_Count = 0;
 		//prepare next image
-	}
-	if (packetfinished==1) {
-		setMode(RFM98_MODE_FSTX);
-		Packet_Byte_Count = 0;
-		packetfinished = 0;
-		delay(200);
 		setMode(RFM98_MODE_TX);
 		state = 4;
+		begin = 1;
 		printf("state transition from 3 to 4\n");
 	}
 	break;
   case 4:
 	printf("Case 4 Triggered\n");
-	if (packetfinished == 0) { //assuming arrangePacket will fill the buffer to 64 though this shouldn't matter as it will change state in the next loop.
+	if (begin == 1) {
+		sendInitialisingBits();
+		begin = 0;
+	}
+	if (imagefinished == 0) { //assuming arrangePacket will fill the buffer to 64 though this shouldn't matter as it will change state in the next loop.
 		arrangePacket();
 		state = 2; //tentatively should go to 2 but can go to 5
 		printf("state transition from 4 to 2\n");
@@ -478,11 +430,15 @@ void Tx() {
 		state = 6;
 		printf("state transition from 5 to 6\n");
 	}
+	else {
+		state = 8;
+		printf("state transition from 5 to 8\n");
+	}
 	break;
   case 6:
 	printf("Case 6 Triggered\n");
-	if (packetfinished != 1) {
-		arrangePacket();
+	if (imagefinished != 1) {
+		arrangePacket(); //fill fifo
 	}
 	else {
 		while (digitalRead(dio3pin) != 1) {} //wait until FIFO Empty
@@ -492,19 +448,25 @@ void Tx() {
 		}	
 	}
 	if (digitalRead(dio2pin) == 1) {
-		state = 2; //tentatively should go to 2 but can go to 5
-		printf("state transition from 6 to 2\n");	
+		if (digitalRead(dio0pin) == 1) {
+			state = 1; //tentatively should go to 2 but can go to 5
+			printf("state transition from 6 to 1\n");
+		}
+		else {
+			state = 2; //tentatively should go to 2 but can go to 5
+			printf("state transition from 6 to 2\n");	
+		}
 	}
 	break;
   case 7:
 	printf("Case 7 Triggered\n");
-	state = 7;
+	state = 8;
 	printf("state transition from 7 to 8\n");
 	break;
   case 8:
 	printf("Case 8 Triggered\n");
 	printf("Prepare next Message\n");
-	state = 8;
+	state = 3;
 	printf("state transition from 8 to 3\n");
 	break;
   }
@@ -551,7 +513,7 @@ void prepBuffer() {
 	/* the whole file is now loaded in the memory buffer. */
 	fclose (pFile);
 	//free (buffer);
-	max_Image_Packet_Count = lSize/254; //256
+	//max_Image_Packet_Count = lSize/62; //256
 	return;
 }
 void takingPicture() { //Use system commands to do that.
@@ -578,10 +540,10 @@ int main(void) { //int argc, char *argv[]
 	while (1){
 	//for (i=0;i<5;i++)	
 		Tx();   
-		printf("This is the packetCount = %d\n", Image_Packet_Count);
-		printf("This is the max packetCount = %d\n", max_Image_Packet_Count);
-		if (Image_Packet_Count > max_Image_Packet_Count) 
-			break;
+		// printf("This is the packetCount = %d\n", Image_Packet_Count);
+		// printf("This is the max packetCount = %d\n", max_Image_Packet_Count);
+		// if (Image_Packet_Count > max_Image_Packet_Count) 
+			// break;
 	}
 	return 0;
 }
