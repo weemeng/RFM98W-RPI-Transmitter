@@ -91,6 +91,10 @@
 #define RFM98_MODE_TX               0x0B    //00001011
 #define RFM98_MODE_FSRX             0x0C    //00001100
 #define RFM98_MODE_RX               0x0D    //00001101
+
+const int Fifosize = 255; //change at payloadlength
+const int Fifoaddlast = 254;
+const int Fifoaddm1 = 253;
  
 //for Transmission
 const int SSpin = 24; 
@@ -100,7 +104,7 @@ const int dio2pin = 5;
 const int dio3pin = 22; 
 const int dio4pin = 26; 
 const int dio5pin = 23; 
-unsigned long Message[Fifosize] = {                   0x12345678,
+unsigned long Message[255] = {                   0x12345678,
                                 0x9ABCDEF1,
                                 0x23456789,
                                 0xABCDEF12,
@@ -178,10 +182,7 @@ FILE * pFile;
 long lSize;
 unsigned char * buffer;
 size_t result;
-
-const int Fifosize = 255; //change at payloadlength
-const int Fifoaddlast = Fifosize - 1;
-const int Fifoaddm1 = Fifoaddlast - 1;
+uint32_t file_byte_size[0];
 
 void spi_send_byte(uint8_t Data1, uint8_t Data2) { 
     digitalWrite(24, LOW);
