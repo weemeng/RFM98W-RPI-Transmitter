@@ -11,19 +11,41 @@
 
 char buffer[256]; // buffer array for data recieve over serial port
 int count=0, i, j, k, next;     // counter for buffer array 
+int fd;
+
+// GPS:
+byte GPSBuffer[82];
+byte GPSIndex=0;
+
+// GPS Variables
+unsigned long SendGPSConfig;
+char GPS_Time[9] = "00:00:00";
+unsigned int GPS_Latitude_Minutes, GPS_Longitude_Minutes;
+double GPS_Latitude_Seconds, GPS_Longitude_Seconds;
+char *GPS_LatitudeSign="";
+char *GPS_LongitudeSign="";
+float Longitude, Latitude;
+unsigned int GPS_Altitude=0, MaximumAltitude=0, MaxAltitudeThisSentence=0;
+byte GotGPSThisSentence=0;
+unsigned int PreviousAltitude=0;
+unsigned int GPS_Satellites=0;
+unsigned int GPS_Speed=0;
+unsigned int GPS_Direction=0;
+
+char Hex[] = "0123456789ABCDEF";
 
 void getGPS()
 {
   int inByte;         // incoming serial byte
   
   // Check for GPS data
-  while (serialDataAvail() > 0)
+  while (serialDataAvail(fd) > 0)
   {
-    inByte = Serial.read();
+    inByte = serialGetchar(fd);
     
     if (inByte != '$')
-    {
-      Serial.write(inByte);
+    {	
+      printf("%x", (char)inByte);
     }
 
     if ((inByte =='$') || (GPSIndex >= 80))
@@ -195,8 +217,6 @@ void ProcessGPRMCCommand()
   }
 }
 
-
-
 void ProcessGPGGACommand() {
   int i, j, k, IntegerPart;
   double Divider;
@@ -241,7 +261,7 @@ void ProcessGPGGACommand() {
 }
 
 void initialiseGPS(){
-	int fd;
+
 	/* PINS configuration */
 	// pinMode (int pin, int mode) ; wiringpi pins numbers ==> view wiringPi pins table
 	//pinMode (15 , OUTPUT); //TxD UART
@@ -266,9 +286,9 @@ int main (void) {
 	//Rpi Camera needs --exif GPS.GPSLongitude=5/1,10/1,15/100 degree minute seconds
 	int read = 0;
 	initialiseGPS();
-	while(serialDataAvail()) {
-		serialGetchar();
-		read = serialGetchar();
+	while(serialDataAvail(fd)) {
+		serialGetchar(fd);
+		read = serialGetchar(fd);
 		//getGPS();
 	}
 
