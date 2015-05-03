@@ -122,6 +122,7 @@ size_t result;
 uint32_t file_byte_size[0];
 
 // GPS
+int fd = 0;
 uint8_t GPSBuffer[82] = {0};
 uint8_t GPSIndex=0;
 // GPS Variables
@@ -136,7 +137,7 @@ uint8_t GotGPSThisSentence = 0; //validity
 unsigned int GPS_Satellites=0;
 char Hex[] = "0123456789ABCDEF";
  
-/*unsigned long Message[255] = {  0x12345678,
+long Message[255] = {  0x12345678,
                                 0x9ABCDEF1,
                                 0x23456789,
                                 0xABCDEF12,
@@ -200,7 +201,6 @@ char Hex[] = "0123456789ABCDEF";
                                 0xF1234567,
                                 0x89ABCDEF,
                                 0x12345678};
-*/ 
 
 void spi_send_byte(uint8_t Data1, uint8_t Data2) { 
     digitalWrite(24, LOW);
@@ -253,7 +253,6 @@ void sendEndImagePacket () {
         spi_send_byte(0x00, endoutput);
         //might need to reset the endpackcount  
     }
-     
 }
 void sendInitialisingBits() { //send initial sequence including 
     printf("GOT HERE!!!\n");
