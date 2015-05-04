@@ -129,13 +129,13 @@ int fd = 0;
 uint8_t GPSBuffer[82] = {0};
 uint8_t GPSIndex=0;
 // GPS Variables
-int GPS_Time[7] = "000000";
-int GPS_Date[7] = "000000";
+char GPS_Time[7] = "000000";
+char GPS_Date[7] = "000000";
 unsigned int GPS_Latitude_Degrees=0, GPS_Longitude_Degrees=0, GPS_Altitude=0;
 double GPS_Latitude_Minutes=0, GPS_Longitude_Minutes=0;
 char *GPS_LatitudeSign="";
 char *GPS_LongitudeSign="";
-char *GPS_AltitudeSign="";
+int GPS_AltitudeSign=0; // 0 is positive
 uint8_t GotGPSThisSentence = 0; //validity
 //unsigned int PreviousAltitude=0;
 unsigned int GPS_Satellites=0;
@@ -305,6 +305,7 @@ void arrangePacket() {
         else {
             imagefinished = 1;
             printf("Image finished sending\n");
+			break;
         }   
     }
 }
@@ -481,18 +482,18 @@ void Tx() {
     printf("%d", spi_rcv_data(0x3F));
     if (imagefinished == 1) {
         setMode(RFM98_MODE_FSTX);
-        setMode(RFM98_MODE_TX);
-        sendEndImagePacket();
+        //setMode(RFM98_MODE_TX);
+        //sendEndImagePacket();
         Image_Packet_Count = 0;
         Buffer_Count = 0;
-        max_Image_Packet_Count = 0;
+        //max_Image_Packet_Count = 0;
         //prepare next image
     }
     if (packetfinished==1) {
         setMode(RFM98_MODE_FSTX);
         Packet_Byte_Count = 0;
         packetfinished = 0;
-        delay(100);
+        //delay(100);
         setMode(RFM98_MODE_TX);
         state = 4;
         printf("state transition from 3 to 4\n");
@@ -620,6 +621,7 @@ void ProcessGPRMCCommand()
             GPS_LongitudeSign = "E";
 			GPS_LatitudeSign = "N";
             GPS_Altitude = 0;
+			GPS_AltitudeSign = 0;
             GPS_Satellites = 0;
             break;
  
@@ -712,7 +714,7 @@ void ProcessGPGGACommand() {
       else if (j == 8) {
         //Altitude
 	if (GPSBuffer[i] == '-')
-	  GPS_AltitudeSign = "-";
+	  GPS_AltitudeSign = 1;
 	else if ((GPSBuffer[i] >= '0') && (GPSBuffer[i] <= '9')) {
 	  GPS_Altitude = GPS_Altitude * 10;
 	  GPS_Altitude += (unsigned int)(GPSBuffer[i] - '0');
@@ -749,7 +751,7 @@ void ProcessGPSLine() {
       printf("-----------------------------------GGA\n");
       ProcessGPGGACommand();
       printf("Satellite Count = %d\n", GPS_Satellites);
-      printf("Altitude = %c", *GPS_AltitudeSign); //supposedly give minus if it is
+      printf("Altitude = %d", GPS_AltitudeSign); //supposedly give minus if it is
       printf("%d\n", GPS_Altitude);
     }
   }
@@ -778,7 +780,8 @@ void prepBuffer() {
 	
     pFile = fopen (imagename, "rb" );
     if (pFile==NULL) {fputs ("File error",stderr); exit (1);}
-  
+    
+    //free (buffer);
     // obtain file size:
     fseek (pFile , 0 , SEEK_END);
     lSize = ftell (pFile);
@@ -800,11 +803,13 @@ void prepBuffer() {
 }
 void takingPicture() { //Use system commands to do that.
     char raspistring[200]; //im avoiding overwriting other data as this string is long
-	sprintf(imagename,  "Stillpic%d.jpg", GPS_Date);
-    sprintf(raspistring, "raspistill -w 180 -h 160 -e jpg -o %s -q 10 -x GPS.GPSAltitude=%d/10 -x GPS.GPSLongitude=%d/1,%d/1,%.0f/1 -x GPS.GPSLongitudeRef=%c -x GPS.GPSLatitude=%d/1,%d/1,%.0f/1 -x GPS.GPSLatitudeRef=%c", imagename, GPS_Altitude, GPS_Longitude_Degrees, long_minute, long_second, *GPS_LongitudeSign, GPS_Latitude_Degrees, lat_minute, lat_second, *GPS_LatitudeSign);
+    sprintf(imagename,  "Stillpic%s.jpg", GPS_Time);
+    printf("TakingPichere\n");
+	printf("New File name is : Stillpic%s.jpg", GPS_Time);
+    sprintf(raspistring, "raspistill -w 20 -h 20 -e jpg -o %s -q 10 -x GPS.GPSAltitude=%d/10 -x GPS.GPSAltitudeRef=%d -x GPS.GPSLongitude=%d/1,%d/1,%.0f/1 -x GPS.GPSLongitudeRef=%c -x GPS.GPSLatitude=%d/1,%d/1,%.0f/1 -x GPS.GPSLatitudeRef=%c", imagename, GPS_Altitude, GPS_AltitudeSign, GPS_Longitude_Degrees, long_minute, long_second, *GPS_LongitudeSign, GPS_Latitude_Degrees, lat_minute, lat_second, *GPS_LatitudeSign);
     //system("mkdir BalloonCamera"); 																//check whether the altitude need to divide by 10    
     //system("cd BalloonCamera");                                         //doesnt work somehow
-    system(raspistring); //"raspistill -w 180 -h 160 -e jpg -o Stillpic.jpg -q 10"
+    system(raspistring); //"raspistill -w 800 -h 600 -e jpg -o Stillpic.jpg -q 10"
     prepBuffer();
     //system("cd");
     printf("finished");
@@ -831,22 +836,23 @@ void setup() {
   printf("Setup Complete\n");
 }
 int main(void) { //int argc, char *argv[]
-    //int i;
+    int newimage = 1;
     if ( wiringPiSetup () < 0 ) //Setup WiringPi
         perror("WiringPiSetup problem \n ");
-    takingPicture(); //fork out this command
+    //takingPicture(); //fork out this command
     setup();
     while (1){
 		if (newimage == 1) {
 			setPicture(); //GotGPSThisSentence
 			newimage = 0;
+			printf("SETPICTURE");
 		}
-		else
+		else {
 			Tx();   
 			printf("This is the packetCount = %d\n", Image_Packet_Count);
 			printf("This is the max packetCount = %d\n", max_Image_Packet_Count);
 			if (Image_Packet_Count > max_Image_Packet_Count) {
-				newimage == 1;
+				newimage = 1;
 				printf("Time for next picture");
 			}
 		}		
