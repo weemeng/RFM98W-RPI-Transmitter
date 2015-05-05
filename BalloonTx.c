@@ -240,7 +240,10 @@ uint8_t getByte() {
 void sendEndImagePacket () {
     int endpackcount = 0;
     uint8_t endoutput;
-    for (endpackcount = 0; endpackcount < Packetaddlast; endpackcount++) {
+	
+	setMode(RFM98_MODE_FSTX);
+    
+	for (endpackcount = 0; endpackcount < Packetaddlast; endpackcount++) {
         if (Byte == 4) {
             Byte = 0;
             Word++;
@@ -255,6 +258,10 @@ void sendEndImagePacket () {
         spi_send_byte(0x00, endoutput);
         //might need to reset the endpackcount  
     }
+	
+	setMode(RFM98_MODE_TX);
+	while (digitalRead(dio0pin) == 0) { //wait for packetsent
+	} //seems dangerous
 }
 void sendInitialisingBits() { //send initial sequence including 
     int used = 11, fill;
@@ -491,10 +498,10 @@ void Tx() {
     //prepare next message and reset the packetsent (by exiting Tx)
     printf("End of test package\n");
     printf("%d", spi_rcv_data(0x3F));
-    if (imagefinished == 1) {
+    if (imagefinished == 1) { //never gets here
         setMode(RFM98_MODE_FSTX);
         //setMode(RFM98_MODE_TX);
-        sendEndImagePacket();
+        //sendEndImagePacket();
         setMode(RFM98_MODE_TX);
 		Image_Packet_Count = 0;
         Buffer_Count = 0;
@@ -852,9 +859,10 @@ int main(void) { //int argc, char *argv[]
 			Tx();   
 			printf("This is the packetCount = %d\n", Image_Packet_Count);
 			printf("This is the max packetCount = %d\n", max_Image_Packet_Count);
-			Image_Packet_Count = max_Image_Packet_Count;
 			if (Image_Packet_Count > max_Image_Packet_Count) {
 				newimage = 1;
+				sendEndImagePacket();
+				 //might cause trouble if packet is big //set into a function
 				setMode(RFM98_MODE_STANDBY);
 				printf("Time for next picture");
 			}
