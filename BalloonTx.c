@@ -437,9 +437,7 @@ void Transmitter_Startup()
 //  spi_send_byte(REG_PLLHOP, 0x00);
   spi_send_byte(REG_PADAC, 0x07);
   //printf(digitalRead(dio5pin));   //check these values
-  //printf(digitalRead(dio0pin));   //check these values
-  setMode(RFM98_MODE_FSTX);
-  setMode(RFM98_MODE_TX);   
+  //printf(digitalRead(dio0pin));   //check these values   
   return;
 }
   
@@ -625,8 +623,7 @@ void ProcessGPRMCCommand()
             GPS_Satellites = 0;
             break;
  
-        case 2:
-          // Latitude
+        case 2:         // Latitude
           if (k <= 1) {
             GPS_Latitude_Degrees = GPS_Latitude_Degrees * 10 + (int)(GPSBuffer[i] - '0');
             Divider = 1;
@@ -635,13 +632,6 @@ void ProcessGPRMCCommand()
             Divider = Divider * 10;
             GPS_Latitude_Minutes = GPS_Latitude_Minutes  + (double)(GPSBuffer[i] - '0') / Divider ; //
           }
-          /*
-          if (k < 9)
-          {
-            GPS_Latitude[k++] = GPSBuffer[i];
-            GPS_Latitude[k] = 0;
-          }
-          */
           k++;
           break;
  
@@ -664,13 +654,6 @@ void ProcessGPRMCCommand()
             Divider = Divider * 10;
             GPS_Longitude_Minutes = GPS_Longitude_Minutes + (double)(GPSBuffer[i] - '0') / Divider;
           }
-          /*
-          if (k < 10)
-          {
-            GPS_Longitude[k++] = GPSBuffer[i];
-            GPS_Longitude[k] = 0;
-          }
-          */
           k++;
           break;  // Start bit
  
@@ -687,7 +670,6 @@ void ProcessGPRMCCommand()
 		case 7: //Date
             if (k < 6) {
 				GPS_Date[k++] = GPSBuffer[i] - '0';
-//				GPS_Date[k] = 0;
             }			
 		default:
 			break;
@@ -716,8 +698,8 @@ void ProcessGPGGACommand() {
 	if (GPSBuffer[i] == '-')
 	  GPS_AltitudeSign = 1;
 	else if ((GPSBuffer[i] >= '0') && (GPSBuffer[i] <= '9')) {
-	  GPS_Altitude = GPS_Altitude * 10;
-	  GPS_Altitude += (unsigned int)(GPSBuffer[i] - '0');
+		GPS_Altitude = GPS_Altitude * 10;
+		GPS_Altitude += (unsigned int)(GPSBuffer[i] - '0');
         }   
       }
     }
@@ -752,7 +734,7 @@ void ProcessGPSLine() {
       ProcessGPGGACommand();
       printf("Satellite Count = %d\n", GPS_Satellites);
       printf("Altitude = %d", GPS_AltitudeSign); //supposedly give minus if it is
-      printf("%d\n", GPS_Altitude);
+      printf("%d\n", GPS_Altitude/10);
     }
   }
 } 
@@ -805,7 +787,7 @@ void takingPicture() { //Use system commands to do that.
     char raspistring[200]; //im avoiding overwriting other data as this string is long
     sprintf(imagename,  "Stillpic%s.jpg", GPS_Time);
     printf("TakingPichere\n");
-	printf("New File name is : Stillpic%s.jpg", GPS_Time);
+	printf("New File name is : Stillpic%s.jpg\n", GPS_Time);
     sprintf(raspistring, "raspistill -w 20 -h 20 -e jpg -o %s -q 10 -x GPS.GPSAltitude=%d/10 -x GPS.GPSAltitudeRef=%d -x GPS.GPSLongitude=%d/1,%d/1,%.0f/1 -x GPS.GPSLongitudeRef=%c -x GPS.GPSLatitude=%d/1,%d/1,%.0f/1 -x GPS.GPSLatitudeRef=%c", imagename, GPS_Altitude, GPS_AltitudeSign, GPS_Longitude_Degrees, long_minute, long_second, *GPS_LongitudeSign, GPS_Latitude_Degrees, lat_minute, lat_second, *GPS_LatitudeSign);
     //system("mkdir BalloonCamera"); 																//check whether the altitude need to divide by 10    
     //system("cd BalloonCamera");                                         //doesnt work somehow
@@ -841,11 +823,16 @@ int main(void) { //int argc, char *argv[]
         perror("WiringPiSetup problem \n ");
     //takingPicture(); //fork out this command
     setup();
+	//exit as standby
+	
     while (1){
 		if (newimage == 1) {
 			setPicture(); //GotGPSThisSentence
 			newimage = 0;
 			printf("SETPICTURE");
+			sendInitialisingBits();
+			setMode(RFM98_MODE_FSTX);
+			setMode(RFM98_MODE_TX);
 		}
 		else {
 			Tx();   
@@ -853,6 +840,7 @@ int main(void) { //int argc, char *argv[]
 			printf("This is the max packetCount = %d\n", max_Image_Packet_Count);
 			if (Image_Packet_Count > max_Image_Packet_Count) {
 				newimage = 1;
+				setMode(RFM98_MODE_STANDBY);
 				printf("Time for next picture");
 			}
 		}		
