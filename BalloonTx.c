@@ -143,70 +143,70 @@ char Hex[] = "0123456789ABCDEF";
 int lat_minute=0, long_minute=0;
 double lat_second=0, long_second=0;
   
-long Message[255] = {  0x12345678,
-                                0x9ABCDEF1,
-                                0x23456789,
-                                0xABCDEF12,
-                                0x34567890,
-                                0xEF123456,
-                                0x789ABCDE,
-                                0xF1234567,
-                                0x89ABCDEF,
-                                0x12345678,
-                                0x9ABCDEF1,
-                                0x23456789,
-                                0xABCDEF12,
-                                0x34567890,
-                                0xEF123456,
-                                0x789ABCDE,
-                                0xF1234567,
-                                0x89ABCDEF,
-                                0x12345678,
-                                0x9ABCDEF1,
-                                0x23456789,
-                                0xABCDEF12,
-                                0x34567890,
-                                0xEF123456,
-                                0x789ABCDE,
-                                0xF1234567,
-                                0x89ABCDEF,
-                                0x12345678,
-                                0x9ABCDEF1,
-                                0x23456789,
-                                0xABCDEF12,
-                                0x34567890,
-                                0xEF123456,
-                                0x789ABCDE,
-                                0xF1234567,
-                                0x89ABCDEF,
-                                0x12345678,
-                                0x9ABCDEF1,
-                                0x23456789,
-                                0xABCDEF12,
-                                0x34567890,
-                                0xEF123456,
-                                0x789ABCDE,
-                                0xF1234567,
-                                0x89ABCDEF,
-                                0x12345678,
-                                0x9ABCDEF1,
-                                0x23456789,
-                                0xABCDEF12,
-                                0x34567890, 
-                                0xEF123456,
-                                0x789ABCDE,
-                                0xF1234567,
-                                0x89ABCDEF,
-                                0x12345678,
-                                0x9ABCDEF1,
-                                0x23456789,
-                                0xABCDEF12,
-                                0x34567890,
-                                0xEF123456,
-                                0x789ABCDE,
-                                0xF1234567,
-                                0x89ABCDEF,
-                                0x12345678};
+int Message[255] = {0x12345678,
+					0x9ABCDEF1,
+					0x23456789,
+					0xABCDEF12,
+					0x34567890,
+					0xEF123456,
+					0x789ABCDE,
+					0xF1234567,
+					0x89ABCDEF,
+					0x12345678,
+					0x9ABCDEF1,
+					0x23456789,
+					0xABCDEF12,
+					0x34567890,
+					0xEF123456,
+					0x789ABCDE,
+					0xF1234567,
+					0x89ABCDEF,
+					0x12345678,
+					0x9ABCDEF1,
+					0x23456789,
+					0xABCDEF12,
+					0x34567890,
+					0xEF123456,
+					0x789ABCDE,
+					0xF1234567,
+					0x89ABCDEF,
+					0x12345678,
+					0x9ABCDEF1,
+					0x23456789,
+					0xABCDEF12,
+					0x34567890,
+					0xEF123456,
+					0x789ABCDE,
+					0xF1234567,
+					0x89ABCDEF,
+					0x12345678,
+					0x9ABCDEF1,
+					0x23456789,
+					0xABCDEF12,
+					0x34567890,
+					0xEF123456,
+					0x789ABCDE,
+					0xF1234567,
+					0x89ABCDEF,
+					0x12345678,
+					0x9ABCDEF1,
+					0x23456789,
+					0xABCDEF12,
+					0x34567890, 
+					0xEF123456,
+					0x789ABCDE,
+					0xF1234567,
+					0x89ABCDEF,
+					0x12345678,
+					0x9ABCDEF1,
+					0x23456789,
+					0xABCDEF12,
+					0x34567890,
+					0xEF123456,
+					0x789ABCDE,
+					0xF1234567,
+					0x89ABCDEF,
+					0x12345678};
  
 void spi_send_byte(uint8_t Data1, uint8_t Data2) { 
     digitalWrite(24, LOW);
@@ -237,62 +237,6 @@ uint8_t getByte() {
         output = 0x00; //fill with 0's and see how this goes
     return output;
 }
-void sendEndImagePacket () {
-    int endpackcount = 0;
-    uint8_t endoutput;
-	
-	setMode(RFM98_MODE_FSTX);
-    
-	for (endpackcount = 0; endpackcount < Packetaddlast; endpackcount++) {
-        if (Byte == 4) {
-            Byte = 0;
-            Word++;
-        }
-        if ((Word == 15) && (Byte == 3))  {
-            printf("New Message");
-            Word = 0;
-            Byte = 0;
-        }
-        endoutput = (Message[Word]>>((3-Byte)*8)); //fill with 0's and see how this goes
-        Byte++;
-        spi_send_byte(0x00, endoutput);
-        //might need to reset the endpackcount  
-    }
-	
-	setMode(RFM98_MODE_TX);
-	while (digitalRead(dio0pin) == 0) { //wait for packetsent
-	} //seems dangerous
-}
-void sendInitialisingBits() { //send initial sequence including 
-    int used = 11, fill;
-	printf("GOT HERE!!!\n");
-    while (digitalRead(dio2pin) == 0) { //while Fifo isnt full
-        //byte padding for recognition at receiver
-		spi_send_byte(0x00, 0xE1); //EL
-		spi_send_byte(0x00, 0x10); //L0
-		spi_send_byte(0x00, 0x59); //SP
-		spi_send_byte(0x00, 0xAC); //AC
-		spi_send_byte(0x00, 0xEC); //EC
-		spi_send_byte(0x00, 0x1A); //IA
-		spi_send_byte(0x00, 0x11); //LI
-		spi_send_byte(0x00, 0x57); //ST		
-		
-		* file_byte_size = (uint32_t) lSize;
-        spi_send_byte(0x00, file_byte_size[0]>>16); //24bit length
-        spi_send_byte(0x00, file_byte_size[0]>>8);
-        spi_send_byte(0x00, file_byte_size[0]);
-        printf("GOT HERE2!!!\n");
-        printf("Actual Size is %ld\n", lSize); // divide by Packetaddmi +1 for total packet for 1 image
-        //printf("Byte Form Size is %x\n", (uint8_t) lSize); //byte form
-        printf("Byte Form is %x\n", (uint16_t) lSize);
-        printf("Sending Initialising Bytes...\n");
-        for (fill = used - 1; fill < PacketSize; fill++) 
-			spi_send_byte(0x00, 0x00);
-		//delay(3000);
-        break;
-    }
-    return;
-}
 void arrangePacket() {
     while (digitalRead(dio2pin) == 0) { //while Fifo isnt full
 //      delay(100);
@@ -322,11 +266,8 @@ void arrangePacket() {
                 break;
             }
         }
-        else {
-            imagefinished = 1;
-            printf("Image finished sending\n");
+        else
 			break;
-        }   
     }
 }
 /*void dio1interrupt () {   //FIFO Threshold FALLING
@@ -391,7 +332,6 @@ void setMode(uint8_t newMode)
   printf("Mode Change Done\n");
   return;
 }
-  
 void SetFSKMod()
 {
   uint8_t cntMode;
@@ -411,7 +351,62 @@ void SetFSKMod()
   printf("\n"); 
   return;
 }
-  
+void sendInitialisingBits() { //send initial sequence including 
+    int used = 11, fill;
+	printf("GOT HERE!!!\n");
+    while (digitalRead(dio2pin) == 0) { //while Fifo isnt full
+        //byte padding for recognition at receiver
+		spi_send_byte(0x00, 0xE1); //EL
+		spi_send_byte(0x00, 0x10); //L0
+		spi_send_byte(0x00, 0x59); //SP
+		spi_send_byte(0x00, 0xAC); //AC
+		spi_send_byte(0x00, 0xEC); //EC
+		spi_send_byte(0x00, 0x1A); //IA
+		spi_send_byte(0x00, 0x11); //LI
+		spi_send_byte(0x00, 0x57); //ST		
+		
+		* file_byte_size = (uint32_t) lSize;
+        spi_send_byte(0x00, file_byte_size[0]>>16); //24bit length
+        spi_send_byte(0x00, file_byte_size[0]>>8);
+        spi_send_byte(0x00, file_byte_size[0]);
+        printf("GOT HERE2!!!\n");
+        printf("Actual Size is %ld\n", lSize); // divide by Packetaddmi +1 for total packet for 1 image
+        //printf("Byte Form Size is %x\n", (uint8_t) lSize); //byte form
+        printf("Byte Form is %x\n", (uint16_t) lSize);
+        printf("Sending Initialising Bytes...\n");
+        for (fill = used - 1; fill < PacketSize; fill++) 
+			spi_send_byte(0x00, 0x00);
+		//delay(3000);
+        break;
+    }
+    return;
+}  
+void sendEndImagePacket () {
+    int endpackcount = 0;
+    uint8_t endoutput;
+	
+	setMode(RFM98_MODE_FSTX);
+    
+	for (endpackcount = 0; endpackcount < Packetaddlast; endpackcount++) {
+        if (Byte == 4) {
+            Byte = 0;
+            Word++;
+        }
+        if ((Word == 15) && (Byte == 3))  {
+            printf("New Message");
+            Word = 0;
+            Byte = 0;
+        }
+        endoutput = (Message[Word]>>((3-Byte)*8)); //fill with 0's and see how this goes
+        Byte++;
+        spi_send_byte(0x00, endoutput);
+        //might need to reset the endpackcount  
+    }
+	
+	setMode(RFM98_MODE_TX);
+	while (digitalRead(dio0pin) == 0) { //wait for packetsent
+	} //seems dangerous
+}
 void Transmitter_Startup()
 {
   //initialize
@@ -498,17 +493,7 @@ void Tx() {
     //prepare next message and reset the packetsent (by exiting Tx)
     printf("End of test package\n");
     printf("%d", spi_rcv_data(0x3F));
-    if (imagefinished == 1) { //never gets here
-        setMode(RFM98_MODE_FSTX);
-        //setMode(RFM98_MODE_TX);
-        //sendEndImagePacket();
-        setMode(RFM98_MODE_TX);
-		Image_Packet_Count = 0;
-        Buffer_Count = 0;
-        //max_Image_Packet_Count = 0;
-        //prepare next image
-    }
-    if (packetfinished==1) {
+   if (packetfinished==1) {
         setMode(RFM98_MODE_FSTX);
         Packet_Byte_Count = 0;
         packetfinished = 0;
@@ -854,6 +839,7 @@ int main(void) { //int argc, char *argv[]
 			sendInitialisingBits();
 			setMode(RFM98_MODE_FSTX);
 			setMode(RFM98_MODE_TX);
+			delay(200);
 		}
 		else {
 			Tx();   
@@ -861,6 +847,8 @@ int main(void) { //int argc, char *argv[]
 			printf("This is the max packetCount = %d\n", max_Image_Packet_Count);
 			if (Image_Packet_Count > max_Image_Packet_Count) {
 				newimage = 1;
+				Image_Packet_Count = 0;
+				Buffer_Count = 0;
 				sendEndImagePacket();
 				 //might cause trouble if packet is big //set into a function
 				setMode(RFM98_MODE_STANDBY);
