@@ -94,9 +94,9 @@
 #define RFM98_MODE_FSRX             0x0C    //00001100
 #define RFM98_MODE_RX               0x0D    //00001101
   
-const int Fifosize = 64; //change at payloadlength
-const int Fifoaddlast = 63;
-const int Fifoaddm1 = 62; 
+const int PacketSize = 64; //change at payloadlength
+const int Packetaddlast = 63;
+const int Packetaddm1 = 62; 
  
 // RFM98W IO Pins
 const int SSpin = 24; 
@@ -119,7 +119,7 @@ uint8_t Redundancy = 0x00;
 // Raspberry Pi Camera
 char imagename[15];
 FILE * pFile;
-long lSize;
+long lSize = 0;
 unsigned char * buffer;
 size_t result;
 uint32_t file_byte_size[0];
@@ -240,7 +240,7 @@ uint8_t getByte() {
 void sendEndImagePacket () {
     int endpackcount = 0;
     uint8_t endoutput;
-    for (endpackcount = 0; endpackcount < Fifoaddlast; endpackcount++) {
+    for (endpackcount = 0; endpackcount < Packetaddlast; endpackcount++) {
         if (Byte == 4) {
             Byte = 0;
             Word++;
@@ -257,18 +257,31 @@ void sendEndImagePacket () {
     }
 }
 void sendInitialisingBits() { //send initial sequence including 
-    printf("GOT HERE!!!\n");
+    int used = 11, fill;
+	printf("GOT HERE!!!\n");
     while (digitalRead(dio2pin) == 0) { //while Fifo isnt full
-        * file_byte_size = (uint32_t) lSize;
+        //byte padding for recognition at receiver
+		spi_send_byte(0x00, 0xE1); //EL
+		spi_send_byte(0x00, 0x10); //L0
+		spi_send_byte(0x00, 0x59); //SP
+		spi_send_byte(0x00, 0xAC); //AC
+		spi_send_byte(0x00, 0xEC); //EC
+		spi_send_byte(0x00, 0x1A); //IA
+		spi_send_byte(0x00, 0x11); //LI
+		spi_send_byte(0x00, 0x57); //ST		
+		
+		* file_byte_size = (uint32_t) lSize;
         spi_send_byte(0x00, file_byte_size[0]>>16); //24bit length
         spi_send_byte(0x00, file_byte_size[0]>>8);
         spi_send_byte(0x00, file_byte_size[0]);
         printf("GOT HERE2!!!\n");
-        printf("Actual Size is %ld\n", lSize);
-        printf("Actual Size is %x\n", (uint8_t) lSize);
-        printf("Actual Size is %x\n", (uint16_t) lSize);
+        printf("Actual Size is %ld\n", lSize); // divide by Packetaddmi +1 for total packet for 1 image
+        //printf("Byte Form Size is %x\n", (uint8_t) lSize); //byte form
+        printf("Byte Form is %x\n", (uint16_t) lSize);
         printf("Sending Initialising Bytes...\n");
-        //delay(3000);
+        for (fill = used - 1; fill < PacketSize; fill++) 
+			spi_send_byte(0x00, 0x00);
+		//delay(3000);
         break;
     }
     return;
@@ -277,10 +290,10 @@ void arrangePacket() {
     while (digitalRead(dio2pin) == 0) { //while Fifo isnt full
 //      delay(100);
         if (Image_Packet_Count <= max_Image_Packet_Count) { //cause of residual bytes
-            if (Packet_Byte_Count < Fifoaddm1) { //push it in || max = PacketSize    
+            if (Packet_Byte_Count < Packetaddm1) { //push it in || max = PacketSize    
                 nextByte = getByte();
                 printf("This is byte %d ------- ", Packet_Byte_Count);
-//              if (Packet_Byte_Count == Fifoaddm1)
+//              if (Packet_Byte_Count == Packetaddm1)
 //                  nextByte = nextByte + plusone;
 //              plusone++;
                 spi_send_byte(0x00, nextByte);
@@ -288,8 +301,8 @@ void arrangePacket() {
                 Packet_Byte_Count++;
             }
             else {
-                spi_send_byte(0x00, Redundancy); //byte Fifoaddm1
-                spi_send_byte(0x00, (unsigned int) Image_Packet_Count); //byte Fifoaddlast
+                spi_send_byte(0x00, Redundancy); //byte Packetaddm1
+                spi_send_byte(0x00, (unsigned int) Image_Packet_Count); //byte Packetaddlast
                 Redundancy++;
                 packetfinished = 1;
                 if (Redundancy == 1) {
@@ -297,7 +310,7 @@ void arrangePacket() {
                     Redundancy = 0;
                 }
                 else
-                    Buffer_Count = Buffer_Count - Fifoaddm1; //0 to Fifoaddm1
+                    Buffer_Count = Buffer_Count - Packetaddm1; //0 to Packetaddm1
                 printf("Packet finished sending\n");
                 break;
             }
@@ -481,8 +494,9 @@ void Tx() {
     if (imagefinished == 1) {
         setMode(RFM98_MODE_FSTX);
         //setMode(RFM98_MODE_TX);
-        //sendEndImagePacket();
-        Image_Packet_Count = 0;
+        sendEndImagePacket();
+        setMode(RFM98_MODE_TX);
+		Image_Packet_Count = 0;
         Buffer_Count = 0;
         //max_Image_Packet_Count = 0;
         //prepare next image
@@ -499,7 +513,7 @@ void Tx() {
     break;
   case 4:
     printf("Case 4 Triggered\n");
-    if (packetfinished == 0) { //assuming arrangePacket will fill the buffer to Fifosize though this shouldn't matter as it will change state in the next loop.
+    if (packetfinished == 0) { //assuming arrangePacket will fill the buffer to PacketSize though this shouldn't matter as it will change state in the next loop.
         arrangePacket();
         state = 2; //tentatively should go to 2 but can go to 5
         printf("state transition from 4 to 2\n");
@@ -780,7 +794,7 @@ void prepBuffer() {
     /* the whole file is now loaded in the memory buffer. */
     fclose (pFile);
     //free (buffer);
-    max_Image_Packet_Count = lSize/Fifoaddm1; //256
+    max_Image_Packet_Count = lSize/Packetaddm1; //256
     return;
 }
 void takingPicture() { //Use system commands to do that.
@@ -838,6 +852,7 @@ int main(void) { //int argc, char *argv[]
 			Tx();   
 			printf("This is the packetCount = %d\n", Image_Packet_Count);
 			printf("This is the max packetCount = %d\n", max_Image_Packet_Count);
+			Image_Packet_Count = max_Image_Packet_Count;
 			if (Image_Packet_Count > max_Image_Packet_Count) {
 				newimage = 1;
 				setMode(RFM98_MODE_STANDBY);
