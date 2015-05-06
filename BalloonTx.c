@@ -385,6 +385,9 @@ void sendEndImagePacket () {
     int endpackcount = 0;
     uint8_t endoutput;
 	
+	Byte = 0;
+	Word = 0;
+	
 	setMode(RFM98_MODE_FSTX);
     spi_send_byte(0x00, 0xE1); //EL
 	spi_send_byte(0x00, 0x10); //L0
