@@ -374,7 +374,7 @@ void sendInitialisingBits() { //send initial sequence including
         //printf("Byte Form Size is %x\n", (uint8_t) lSize); //byte form
         printf("Byte Form is %x\n", (uint16_t) lSize);
         printf("Sending Initialising Bytes...\n");
-        for (fill = used - 1; fill < PacketSize; fill++) 
+        for (fill = used; fill < PacketSize; fill++) 
 			spi_send_byte(0x00, 0x00);
 		//delay(3000);
         break;
@@ -386,14 +386,21 @@ void sendEndImagePacket () {
     uint8_t endoutput;
 	
 	setMode(RFM98_MODE_FSTX);
-    
-	for (endpackcount = 0; endpackcount < Packetaddlast; endpackcount++) {
+    spi_send_byte(0x00, 0xE1); //EL
+	spi_send_byte(0x00, 0x10); //L0
+	spi_send_byte(0x00, 0x59); //SP
+	spi_send_byte(0x00, 0xAC); //AC
+	spi_send_byte(0x00, 0xEC); //EC
+	spi_send_byte(0x00, 0x1A); //IA
+	spi_send_byte(0x00, 0x11); //LI
+	spi_send_byte(0x00, 0x57); //ST		
+	for (endpackcount = 0; endpackcount < Packetaddlast-8; endpackcount++) {
         if (Byte == 4) {
             Byte = 0;
             Word++;
         }
         if ((Word == 15) && (Byte == 3))  {
-            printf("New Message");
+            //printf("New Message");
             Word = 0;
             Byte = 0;
         }
