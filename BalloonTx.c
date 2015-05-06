@@ -129,8 +129,8 @@ int fd = 0;
 uint8_t GPSBuffer[82] = {0};
 uint8_t GPSIndex=0;
 // GPS Variables
-char GPS_Time[7] = "000000";
-char GPS_Date[7] = "000000";
+unsigned char GPS_Time[7] = "000000";
+unsigned char GPS_Date[7] = "000000";
 unsigned int GPS_Latitude_Degrees=0, GPS_Longitude_Degrees=0, GPS_Altitude=0;
 double GPS_Latitude_Minutes=0, GPS_Longitude_Minutes=0;
 char *GPS_LatitudeSign="";
@@ -318,7 +318,7 @@ void SetFSKMod()
   return;
 }
 void sendInitialisingBits() { //send initial sequence including 
-    int used = 11, fill;
+    int used = 24, fill;
 	printf("GOT HERE!!!\n");
     while (digitalRead(dio2pin) == 0) { //while Fifo isnt full
         //byte padding for recognition at receiver
@@ -331,10 +331,40 @@ void sendInitialisingBits() { //send initial sequence including
 		spi_send_byte(0x00, 0x11); //LI
 		spi_send_byte(0x00, 0x57); //ST		
 		
-		* file_byte_size = (uint32_t) lSize;
+		* file_byte_size = (uint32_t) lSize; 
         spi_send_byte(0x00, file_byte_size[0]>>16); //24bit length
         spi_send_byte(0x00, file_byte_size[0]>>8);
         spi_send_byte(0x00, file_byte_size[0]);
+		
+		//GPS
+		//Time
+		spi_send_byte(0x00, (unsigned int) (*GPS_Time)>>16));
+		spi_send_byte(0x00, (unsigned int) (*GPS_Time)>>8));
+		spi_send_byte(0x00, (unsigned int) (*GPS_Time));
+		//Latitude
+		if (GPS_LatitudeSign == "N")
+			spi_send_byte(0x00, 0x00);
+		else
+			spi_send_byte(0x00, 0xFF);
+		spi_send_byte(0x00, (uint8_t) GPS_Latitude_Degrees);
+		spi_send_byte(0x00, (uint8_t) lat_minute);
+		spi_send_byte(0x00, (uint8_t) lat_second);
+		//Longitude
+		if (GPS_LongitudeSign == "N")
+			spi_send_byte(0x00, 0x00);
+		else
+			spi_send_byte(0x00, 0xFF);
+		spi_send_byte(0x00, (uint8_t) GPS_Longitude_Degrees);
+		spi_send_byte(0x00, (uint8_t) long_minute);
+		spi_send_byte(0x00, (uint8_t) long_second);
+		//Altitude
+		if (GPS_AltitudeSign == 0)
+			spi_send_byte(0x00, 0x00); //positive
+		else
+			spi_send_byte(0x00, 0xFF); //negative
+		spi_send_byte(0x00, (uint8_t) GPS_Altitude);		
+		
+		
         printf("GOT HERE2!!!\n");
         printf("Actual Size is %ld\n", lSize); // divide by Packetaddmi +1 for total packet for 1 image
         //printf("Byte Form Size is %x\n", (uint8_t) lSize); //byte form
@@ -363,7 +393,7 @@ void sendEndImagePacket () {
 	spi_send_byte(0x00, 0x1A); //IA
 	spi_send_byte(0x00, 0x11); //LI
 	spi_send_byte(0x00, 0x57); //ST		
-	for (endpackcount = 0; endpackcount < Packetaddlast-8; endpackcount++) {
+	for (endpackcount = 0; endpackcount < PacketSize-8; endpackcount++) {
         if (Byte == 4) {
             Byte = 0;
             Word++;
