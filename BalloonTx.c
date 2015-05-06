@@ -338,11 +338,11 @@ void sendInitialisingBits() { //send initial sequence including
 		
 		//GPS
 		//Time
-		spi_send_byte(0x00, (unsigned int) (*GPS_Time)>>16));
-		spi_send_byte(0x00, (unsigned int) (*GPS_Time)>>8));
+		spi_send_byte(0x00, (unsigned int) (*GPS_Time)>>16);
+		spi_send_byte(0x00, (unsigned int) (*GPS_Time)>>8);
 		spi_send_byte(0x00, (unsigned int) (*GPS_Time));
 		//Latitude
-		if (GPS_LatitudeSign == "N")
+		if (*GPS_LatitudeSign == 'N')
 			spi_send_byte(0x00, 0x00);
 		else
 			spi_send_byte(0x00, 0xFF);
@@ -350,7 +350,7 @@ void sendInitialisingBits() { //send initial sequence including
 		spi_send_byte(0x00, (uint8_t) lat_minute);
 		spi_send_byte(0x00, (uint8_t) lat_second);
 		//Longitude
-		if (GPS_LongitudeSign == "N")
+		if (*GPS_LongitudeSign == 'E')
 			spi_send_byte(0x00, 0x00);
 		else
 			spi_send_byte(0x00, 0xFF);
@@ -362,8 +362,10 @@ void sendInitialisingBits() { //send initial sequence including
 			spi_send_byte(0x00, 0x00); //positive
 		else
 			spi_send_byte(0x00, 0xFF); //negative
-		spi_send_byte(0x00, (uint8_t) GPS_Altitude);		
-		
+		spi_send_byte(0x00, (uint32_t) GPS_Altitude>>24);
+		spi_send_byte(0x00, (uint32_t) GPS_Altitude>>16);		
+		spi_send_byte(0x00, (uint32_t) GPS_Altitude>>8);
+		spi_send_byte(0x00, (uint32_t) GPS_Altitude);
 		
         printf("GOT HERE2!!!\n");
         printf("Actual Size is %ld\n", lSize); // divide by Packetaddmi +1 for total packet for 1 image
@@ -374,7 +376,9 @@ void sendInitialisingBits() { //send initial sequence including
 			spi_send_byte(0x00, 0x00);
 		//delay(3000);
         break;
+		
     }
+	Image_Packet_Count = max_Image_Packet_Count - 2;
     return;
 }  
 void sendEndImagePacket () {
