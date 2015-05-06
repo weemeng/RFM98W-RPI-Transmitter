@@ -97,6 +97,8 @@
 const int PacketSize = 64; //change at payloadlength
 const int Packetaddlast = 63;
 const int Packetaddm1 = 62; 
+
+const int LEDIndicationpin = 27;
  
 // RFM98W IO Pins
 const int SSpin = 24; 
@@ -338,9 +340,10 @@ void sendInitialisingBits() { //send initial sequence including
 		
 		//GPS
 		//Time
-		spi_send_byte(0x00, (unsigned int) (*GPS_Time)>>16);
-		spi_send_byte(0x00, (unsigned int) (*GPS_Time)>>8);
-		spi_send_byte(0x00, (unsigned int) (*GPS_Time));
+		spi_send_byte(0x00, (uint8_t) ((GPS_Time[0]-'0')<<4 | (GPS_Time[1]-'0'));
+		spi_send_byte(0x00, (uint8_t) ((GPS_Time[2]-'0')<<4 | (GPS_Time[3]-'0'));
+		spi_send_byte(0x00, (uint8_t) ((GPS_Time[4]-'0')<<4 | (GPS_Time[5]-'0'));
+		
 		//Latitude
 		if (*GPS_LatitudeSign == 'N')
 			spi_send_byte(0x00, 0x00);
@@ -730,7 +733,7 @@ void ProcessGPSLine() {
         printf("valid\n");
       else
         printf("invalid\n");
-      printf("GPS TIME : %c\n", *GPS_Time);
+      printf("GPS TIME : %s\n", GPS_Time);
       printf("Latitude = %c", *GPS_LatitudeSign); //supposedly give minus if it is
       printf("%d\n", GPS_Latitude_Degrees);
       lat_minute = (int) (GPS_Latitude_Minutes*100)/1;
@@ -820,8 +823,24 @@ void initialiseGPS(){
 }
 void setPicture() {
     while (1) {
+		digitalWrite(LEDIndicationpin, 1);
+		delay(70);
+		digitalWrite(LEDIndicationpin, 0);
+		delay(70);
 		getGPS();
 		if ((GotGPSThisSentence == 1) && (GPS_Altitude > 0)) { //gives if gps_altitude is not 0 as sign is in another variable
+			digitalWrite(LEDIndicationpin, 1);
+			delay(500);
+			digitalWrite(LEDIndicationpin, 0);
+			delay(500);
+			digitalWrite(LEDIndicationpin, 1);
+			delay(500);
+			digitalWrite(LEDIndicationpin, 0);
+			delay(500);
+			digitalWrite(LEDIndicationpin, 1);
+			delay(500);
+			digitalWrite(LEDIndicationpin, 0);
+			delay(500);
 			break; //need to check if Exif can go negative
         }
     }
