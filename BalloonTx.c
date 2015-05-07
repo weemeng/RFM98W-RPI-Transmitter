@@ -807,7 +807,7 @@ void takingPicture() { //Use system commands to do that.
     sprintf(imagename,  "Stillpic%s.jpg", GPS_Time);
     printf("TakingPichere\n");
 	printf("New File name is : Stillpic%s.jpg\n", GPS_Time);
-    sprintf(raspistring, "raspistill -w 20 -h 20 -e jpg -o %s -q 10 -x GPS.GPSAltitude=%d/10 -x GPS.GPSAltitudeRef=%d -x GPS.GPSLongitude=%d/1,%d/1,%.0f/1 -x GPS.GPSLongitudeRef=%c -x GPS.GPSLatitude=%d/1,%d/1,%.0f/1 -x GPS.GPSLatitudeRef=%c", imagename, GPS_Altitude, GPS_AltitudeSign, GPS_Longitude_Degrees, long_minute, long_second, *GPS_LongitudeSign, GPS_Latitude_Degrees, lat_minute, lat_second, *GPS_LatitudeSign);
+    sprintf(raspistring, "raspistill -w 640 -h 480 -th none -e jpg -o %s -q 10 -x GPS.GPSAltitude=%d/10 -x GPS.GPSAltitudeRef=%d -x GPS.GPSLongitude=%d/1,%d/1,%.0f/1 -x GPS.GPSLongitudeRef=%c -x GPS.GPSLatitude=%d/1,%d/1,%.0f/1 -x GPS.GPSLatitudeRef=%c", imagename, GPS_Altitude, GPS_AltitudeSign, GPS_Longitude_Degrees, long_minute, long_second, *GPS_LongitudeSign, GPS_Latitude_Degrees, lat_minute, lat_second, *GPS_LatitudeSign);
     //system("mkdir BalloonCamera"); 																//check whether the altitude need to divide by 10    
     //system("cd BalloonCamera");                                         //doesnt work somehow
     system(raspistring); //"raspistill -w 800 -h 600 -e jpg -o Stillpic.jpg -q 10"
