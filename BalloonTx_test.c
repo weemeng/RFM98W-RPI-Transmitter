@@ -72,8 +72,7 @@
 #define REG_SEQCONFIG1              0x36
 #define REG_SEQCONFIG2              0x37
   
-#define REG_IMAGECAL                0x3B    //0xC2
-#define REG_TEMP                	0x3C    //read 
+#define REG_IMAGECAL                0x3B    //0xC2 
 #define REG_IRQFLAGS1               0x3E    //trigger
 #define REG_IRQFLAGS2               0x3F    //trigger
 #define REG_DIOMAPPING1             0x40    //00-00-00-00
@@ -127,24 +126,6 @@ unsigned char * buffer;
 size_t result;
 uint32_t file_byte_size[0];
  
-// GPS
-int fd = 0;
-uint8_t GPSBuffer[82] = {0};
-uint8_t GPSIndex=0;
-// GPS Variables
-unsigned char GPS_Time[7] = "000000";
-unsigned char GPS_Date[7] = "000000";
-unsigned int GPS_Latitude_Degrees=0, GPS_Longitude_Degrees=0, GPS_Altitude=0;
-double GPS_Latitude_Minutes=0, GPS_Longitude_Minutes=0;
-char *GPS_LatitudeSign="";
-char *GPS_LongitudeSign="";
-int GPS_AltitudeSign=0; // 0 is positive
-uint8_t GotGPSThisSentence = 0; //validity
-//unsigned int PreviousAltitude=0;
-unsigned int GPS_Satellites=0;
-char Hex[] = "0123456789ABCDEF";
-int lat_minute=0, long_minute=0;
-double lat_second=0, long_second=0;
   
 int Message[31] = {0x12345678,
 					0x9ABCDEF1,
@@ -239,16 +220,20 @@ void arrangePacket() {
 			break;
     }
 }
-/*void dio1interrupt () {   //FIFO Threshold FALLING
+void dio1interrupt () {   //FIFO Threshold FALLING
   printf("Running Dio1 interrupt\n");
   printf("Fifo Threshold interrupt\n");
   arrangePacket();              //might have to disable interrupt here
   return;
-}*/
-/*void setInterrupts() {
-  wiringPiISR (dio1pin, INT_EDGE_FALLING,  &dio1interrupt);
+}
+void setInterrupts() {
+  if (wiringPiISR (dio1pin, INT_EDGE_FALLING, &dio1interrupt) < 0)
+  {
+    fprintf (stderr, "Unable to setup ISR: %s\n", strerror (errno)) ;
+    return 1 ;
+  }
   printf("Interrupts set up\n");
-}*/
+}
 void setMode(uint8_t newMode)
 {
   if(newMode == currentMode)
@@ -320,110 +305,6 @@ void SetFSKMod()
   printf("\n"); 
   return;
 }
-void sendInitialisingBits() { //send initial sequence including 
-    int used = 25, fill;
-	printf("GOT HERE!!!\n");
-    while (digitalRead(dio2pin) == 0) { //while Fifo isnt full
-        //byte padding for recognition at receiver
-		spi_send_byte(0x00, 0xE1); //EL
-		spi_send_byte(0x00, 0x10); //L0
-		spi_send_byte(0x00, 0x59); //SP
-		spi_send_byte(0x00, 0xAC); //AC
-		spi_send_byte(0x00, 0xEC); //EC
-		spi_send_byte(0x00, 0x1A); //IA
-		spi_send_byte(0x00, 0x11); //LI
-		spi_send_byte(0x00, 0x57); //ST		
-		
-		* file_byte_size = (uint32_t) lSize; 
-        spi_send_byte(0x00, file_byte_size[0]>>16); //24bit length
-        spi_send_byte(0x00, file_byte_size[0]>>8);
-        spi_send_byte(0x00, file_byte_size[0]);
-		
-		//GPS
-		//Time
-		spi_send_byte(0x00, (uint8_t) ((GPS_Time[0]-'0')<<4 | (GPS_Time[1]-'0'));
-		spi_send_byte(0x00, (uint8_t) ((GPS_Time[2]-'0')<<4 | (GPS_Time[3]-'0'));
-		spi_send_byte(0x00, (uint8_t) ((GPS_Time[4]-'0')<<4 | (GPS_Time[5]-'0'));
-		
-		//Latitude
-		if (*GPS_LatitudeSign == 'N')
-			spi_send_byte(0x00, 0x00);
-		else
-			spi_send_byte(0x00, 0xFF);
-		spi_send_byte(0x00, (uint8_t) GPS_Latitude_Degrees);
-		spi_send_byte(0x00, (uint8_t) lat_minute);
-		spi_send_byte(0x00, (uint8_t) lat_second);
-		//Longitude
-		if (*GPS_LongitudeSign == 'E')
-			spi_send_byte(0x00, 0x00);
-		else
-			spi_send_byte(0x00, 0xFF);
-		spi_send_byte(0x00, (uint8_t) GPS_Longitude_Degrees);
-		spi_send_byte(0x00, (uint8_t) long_minute);
-		spi_send_byte(0x00, (uint8_t) long_second);
-		//Altitude
-		if (GPS_AltitudeSign == 0)
-			spi_send_byte(0x00, 0x00); //positive
-		else
-			spi_send_byte(0x00, 0xFF); //negative
-		spi_send_byte(0x00, (uint32_t) GPS_Altitude>>24);
-		spi_send_byte(0x00, (uint32_t) GPS_Altitude>>16);		
-		spi_send_byte(0x00, (uint32_t) GPS_Altitude>>8);
-		spi_send_byte(0x00, (uint32_t) GPS_Altitude);
-		
-		//Temp
-		spi_send_byte(0x00, spi_rcv_data(REG_TEMP));
-		
-        printf("GOT HERE2!!!\n");
-        printf("Actual Size is %ld\n", lSize); // divide by Packetaddmi +1 for total packet for 1 image
-        //printf("Byte Form Size is %x\n", (uint8_t) lSize); //byte form
-        printf("Byte Form is %x\n", (uint16_t) lSize);
-        printf("Sending Initialising Bytes...\n");
-        for (fill = used; fill < PacketSize; fill++) 
-			spi_send_byte(0x00, 0x00);
-		//delay(3000);
-        break;
-		
-    }
-	Image_Packet_Count = max_Image_Packet_Count - 2;
-    return;
-}  
-void sendEndImagePacket () {
-    int endpackcount = 0;
-    uint8_t endoutput;
-	
-	Byte = 0;
-	Word = 0;
-	
-	setMode(RFM98_MODE_FSTX);
-    spi_send_byte(0x00, 0xE1); //EL
-	spi_send_byte(0x00, 0x10); //L0
-	spi_send_byte(0x00, 0x59); //SP
-	spi_send_byte(0x00, 0xAC); //AC
-	spi_send_byte(0x00, 0xEC); //EC
-	spi_send_byte(0x00, 0x1A); //IA
-	spi_send_byte(0x00, 0x11); //LI
-	spi_send_byte(0x00, 0x57); //ST		
-	for (endpackcount = 0; endpackcount < PacketSize-8; endpackcount++) {
-        if (Byte == 4) {
-            Byte = 0;
-            Word++;
-        }
-        if ((Word == 15) && (Byte == 3))  {
-            //printf("New Message");
-            Word = 0;
-            Byte = 0;
-        }
-        endoutput = (Message[Word]>>((3-Byte)*8)); //fill with 0's and see how this goes
-        Byte++;
-        spi_send_byte(0x00, endoutput);
-        //might need to reset the endpackcount  
-    }
-	
-	setMode(RFM98_MODE_TX);
-	while (digitalRead(dio0pin) == 0) { //wait for packetsent
-	} //seems dangerous
-}
 void Transmitter_Startup()
 {
   //initialize
@@ -462,10 +343,10 @@ void Transmitter_Startup()
   spi_send_byte(REG_PACKETCONFIG1, 0x50);
   spi_send_byte(REG_PACKETCONFIG2, 0x40);
   spi_send_byte(REG_PAYLOADLENGTH, 0x40); //FF
-  spi_send_byte(REG_FIFOTHRESH, 0x85);
+  spi_send_byte(REG_FIFOTHRESH, 0x85); //10000101
   spi_send_byte(REG_IMAGECAL, 0xC2); 
-  spi_send_byte(REG_DIOMAPPING1, 0x00);
-  spi_send_byte(REG_DIOMAPPING2, 0x31);
+  spi_send_byte(REG_DIOMAPPING1, 0x00); //00000000
+  spi_send_byte(REG_DIOMAPPING2, 0x31); //00110001
 //  spi_send_byte(REG_PLLHOP, 0x00);
   spi_send_byte(REG_PADAC, 0x07);
   //printf(digitalRead(dio5pin));   //check these values
@@ -474,6 +355,8 @@ void Transmitter_Startup()
 }
   
 void Tx() {
+  
+  
   //dio2pin = FIFO FULL //dio0pin packet sent //dio1pin Fifo Threshold //dio3pin fifioempty
   if ((digitalRead(dio2pin) == 1) && (digitalRead(dio0pin) == 1)) 
     state = 1;  //FIFO full and packet sent
@@ -570,14 +453,14 @@ void Tx() {
     printf("Prepare next Message\n");
     state = 8;
     printf("state transition from 8 to 3\n");
-    break;
+    break;  
   }
 }
 int setRFM98W(void)
 {
     // initialize the pins
     int pisetupbit;
-    pinMode( SSpin, OUTPUT);
+    pinMode(SSpin, OUTPUT);
     pinMode(dio0pin, INPUT);
     pinMode(dio1pin, INPUT);
     pinMode(dio2pin, INPUT);
@@ -592,197 +475,8 @@ int setRFM98W(void)
     Transmitter_Startup();
     return 0;
 }
-uint8_t GPSChecksumOK() {
-  uint8_t XOR, i, c;
-  XOR = 0;
-  for (i = 1; i < (GPSIndex-4); i++) {
-    c = GPSBuffer[i];
-    XOR ^= c;
-  }
-  return (GPSBuffer[GPSIndex-4] == '*') && (GPSBuffer[GPSIndex-3] == Hex[XOR >> 4]) && (GPSBuffer[GPSIndex-2] == Hex[XOR & 15]);
-}
- 
-void ProcessGPRMCCommand()
-{
-  int i, j, k;
-  double Divider = 1;
-   
-  // $GPRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,230394,003.1,W*6A
-  // 0   220516     Time Stamp
-  // 1   A          validity - A-ok, V-invalid
-  // 2   5133.82    current Latitude
-  // 3   N          North/South
-  // 4   00042.24   current Longitude
-  // 5   W          East/West
-  // 6   130694     Date Stamp
-   
-  for (i=7, j=0, k=0; (i<GPSIndex) && (j<8); i++) {
-    if (GPSBuffer[i] == ',') {
-      j++;    // Segment index
-      k=0;    // Index into target variable
-    }
-    else {
-        switch (j) {
-        case 0: // UTC Time
-            if (k < 6) {
-				GPS_Time[k++] = GPSBuffer[i];
-//				GPS_Time[k] = 0;
-            }
-            break;
-        case 1:
-            // Validity
-            if (GPSBuffer[i] == 'A')
-				GotGPSThisSentence = 1;
-            else
-				GotGPSThisSentence = 0;
-            GPS_Latitude_Degrees = 0;
-            GPS_Latitude_Minutes = 0;
-            GPS_Longitude_Degrees = 0;
-            GPS_Longitude_Minutes = 0;
-            GPS_LongitudeSign = "E";
-			GPS_LatitudeSign = "N";
-            GPS_Altitude = 0;
-			GPS_AltitudeSign = 0;
-            GPS_Satellites = 0;
-            break;
- 
-        case 2:         // Latitude
-          if (k <= 1) {
-            GPS_Latitude_Degrees = GPS_Latitude_Degrees * 10 + (int)(GPSBuffer[i] - '0');
-            Divider = 1;
-          }
-          else if ( k != 4) {
-            Divider = Divider * 10;
-            GPS_Latitude_Minutes = GPS_Latitude_Minutes  + (double)(GPSBuffer[i] - '0') / Divider ; //
-          }
-          k++;
-          break;
- 
-        case 3:
-          if (k < 1) {          // N or S
-            // Latitude = GPS_Latitude_Degrees + GPS_Latitude_Minutes * 5 / 30000;
-            if (GPSBuffer[i] == 'S')  {
-				GPS_LatitudeSign = "S"; // -
-            }
-            else
-				GPS_LatitudeSign = "N";
-          }
-          break;
-        case 4:         // Longitude
-          if (k <= 2) {
-            GPS_Longitude_Degrees = GPS_Longitude_Degrees * 10 + (int)(GPSBuffer[i] - '0');
-            Divider = 1;
-          }
-          else if ( k != 5) {
-            Divider = Divider * 10;
-            GPS_Longitude_Minutes = GPS_Longitude_Minutes + (double)(GPSBuffer[i] - '0') / Divider;
-          }
-          k++;
-          break;  // Start bit
- 
-        case 5:
-          // E or W
-			if (k < 1) {
-				if (GPSBuffer[i] == 'W')
-					GPS_LongitudeSign = "W"; //-
-				else
-					GPS_LongitudeSign = "E";
-			}
-			break;  // Start bit
-		
-		case 7: //Date
-            if (k < 6) {
-				GPS_Date[k++] = GPSBuffer[i] - '0';
-            }			
-		default:
-			break;
-      }
-    }
-  }
-}
-void ProcessGPGGACommand() {
-  int i, j;
-  // $GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47
-  // 8    = Antenna altitude above/below mean sea level (geoid)
-  for (i=7, j=0; (i<GPSIndex) && (j<11); i++) {
-    if (GPSBuffer[i] == ',') {
-      j++;    // Segment index
-    }
-    else {
-      if (j == 6) {
-        //Satellite Count
-        if ((GPSBuffer[i] >= '0') && (GPSBuffer[i] <= '9')) {
-          GPS_Satellites = GPS_Satellites * 10;
-          GPS_Satellites += (unsigned int)(GPSBuffer[i] - '0');
-        }
-      }
-      else if (j == 8) {
-        //Altitude
-	if (GPSBuffer[i] == '-')
-	  GPS_AltitudeSign = 1;
-	else if ((GPSBuffer[i] >= '0') && (GPSBuffer[i] <= '9')) {
-		GPS_Altitude = GPS_Altitude * 10;
-		GPS_Altitude += (unsigned int)(GPSBuffer[i] - '0');
-        }   
-      }
-    }
-  }
-}
-void ProcessGPSLine() {
-  if (GPSChecksumOK()) {
-    if ((GPSBuffer[1] == 'G') && (GPSBuffer[2] == 'P') && (GPSBuffer[3] == 'R') && (GPSBuffer[4] == 'M') && (GPSBuffer[5] == 'C')) {
-      printf("-----------------------------------RMC\n");
-      ProcessGPRMCCommand();
-      if (GotGPSThisSentence == 1)
-        printf("valid\n");
-      else
-        printf("invalid\n");
-      printf("GPS TIME : %s\n", GPS_Time);
-      printf("Latitude = %c", *GPS_LatitudeSign); //supposedly give minus if it is
-      printf("%d\n", GPS_Latitude_Degrees);
-      lat_minute = (int) (GPS_Latitude_Minutes*100)/1;
-      printf("Minutes = %2d\n", lat_minute);
-      lat_second = (((GPS_Latitude_Minutes*100)/1 - lat_minute)*60)/1;
-      printf("seconds = %.0f\n", lat_second);
-     
-      printf("Longitude = %c", *GPS_LongitudeSign); //supposedly give minus if it is
-      printf("%d\n", GPS_Longitude_Degrees);
-      long_minute = (int) (GPS_Longitude_Minutes*100)/1;
-      printf("Minutes = %2d\n", long_minute);
-      long_second = (((GPS_Longitude_Minutes*100)/1 - long_minute)*60)/1;
-      printf("seconds = %.0f\n", long_second);
-    }
-    if ((GPSBuffer[1] == 'G') && (GPSBuffer[2] == 'P') && (GPSBuffer[3] == 'G') && (GPSBuffer[4] == 'G') && (GPSBuffer[5] == 'A')) {
-      printf("-----------------------------------GGA\n");
-      ProcessGPGGACommand();
-      printf("Satellite Count = %d\n", GPS_Satellites);
-      printf("Altitude = %d", GPS_AltitudeSign); //supposedly give minus if it is
-      printf("%d\n", GPS_Altitude/10);
-    }
-  }
-} 
-void getGPS() {
-  int inByte;         // incoming serial byte
-  // Check for GPS data
-  while (serialDataAvail(fd) > 0) {
-    inByte = serialGetchar(fd);
-    if (inByte != '$') {    
-      //printf("%2x", (char)inByte);
-    }
-    if ((inByte =='$') || (GPSIndex >= 80)) {
-      GPSIndex = 0;
-    }
-    if (inByte != '\r') {
-      GPSBuffer[GPSIndex++] = inByte;
-    }
-    if (inByte == '\n') {
-      ProcessGPSLine();
-      GPSIndex = 0;
-    }
-  }
-}
 void prepBuffer() {
-	
+	sprintf(imagename,  "Stillpic.jpg");
     pFile = fopen (imagename, "rb" );
     if (pFile==NULL) {fputs ("File error",stderr); exit (1);}
     
@@ -820,74 +514,31 @@ void takingPicture() { //Use system commands to do that.
     printf("finished");
     return;
 }
-void initialiseGPS(){
-    if((fd = serialOpen("/dev/ttyAMA0", 9600)) < 0 ) /*device is the serial uart port in the RPi*/
-        perror("device not opened \n");
-    return;
-}
 void setPicture() {
-    while (1) {
-		digitalWrite(LEDIndicationpin, 1);
-		delay(70);
-		digitalWrite(LEDIndicationpin, 0);
-		delay(70);
-		getGPS();
-		if ((GotGPSThisSentence == 1) && (GPS_Altitude > 0)) { //gives if gps_altitude is not 0 as sign is in another variable
-			digitalWrite(LEDIndicationpin, 1);
-			delay(500);
-			digitalWrite(LEDIndicationpin, 0);
-			delay(500);
-			digitalWrite(LEDIndicationpin, 1);
-			delay(500);
-			digitalWrite(LEDIndicationpin, 0);
-			delay(500);
-			digitalWrite(LEDIndicationpin, 1);
-			delay(500);
-			digitalWrite(LEDIndicationpin, 0);
-			delay(500);
-			break; //need to check if Exif can go negative
-        }
-    }
     takingPicture();
 }
 void setup() {
-  printf("Balloon Initializing...\n");
-  initialiseGPS();
   setRFM98W();
-  printf("Setup Complete\n");
 }
 int main(void) { //int argc, char *argv[]
     int newimage = 1;
     if ( wiringPiSetup () < 0 ) //Setup WiringPi
         perror("WiringPiSetup problem \n ");
+	setInterrupts();
     //takingPicture(); //fork out this command
     setup();
 	//exit as standby
-	
+	setPicture(); //GotGPSThisSentence
+	setMode(RFM98_MODE_FSTX);
+	setMode(RFM98_MODE_TX);
     while (1){
-		if (newimage == 1) {
-			setPicture(); //GotGPSThisSentence
+		if (newimage == 1) {			
 			newimage = 0;
-			printf("SETPICTURE");
 			sendInitialisingBits();
-			setMode(RFM98_MODE_FSTX);
-			setMode(RFM98_MODE_TX);
 			delay(200);
 		}
-		else {
+		else
 			Tx();   
-			printf("This is the packetCount = %d\n", Image_Packet_Count);
-			printf("This is the max packetCount = %d\n", max_Image_Packet_Count);
-			if (Image_Packet_Count > max_Image_Packet_Count) {
-				newimage = 1;
-				Image_Packet_Count = 0;
-				Buffer_Count = 0;
-				sendEndImagePacket();
-				 //might cause trouble if packet is big //set into a function
-				setMode(RFM98_MODE_STANDBY);
-				printf("Time for next picture");
-			}
-		}		
     }
     return 0;
 }
