@@ -94,9 +94,9 @@
 #define RFM98_MODE_FSRX             0x0C    //00001100
 #define RFM98_MODE_RX               0x0D    //00001101
   
-const int PacketSize = 64; //change at payloadlength
-const int Packetaddlast = 63;
-const int Packetaddm1 = 62; 
+const int PacketSize = 256; //change at payloadlength
+const int Packetaddlast = 255;
+const int Packetaddm1 = 254; 
 
 const int LEDIndicationpin = 27;
  
@@ -187,38 +187,13 @@ uint8_t getByte() {
         output = 0x00; //fill with 0's and see how this goes
     return output;
 }
-void arrangePacket() {
-    while (digitalRead(dio2pin) == 0) { //while Fifo isnt full
-//      delay(100);
-        if (Image_Packet_Count <= max_Image_Packet_Count) { //cause of residual bytes
-            if (Packet_Byte_Count < Packetaddm1) { //push it in || max = PacketSize    
-                nextByte = getByte();
-                printf("This is byte %d ------- ", Packet_Byte_Count);
-//              if (Packet_Byte_Count == Packetaddm1)
-//                  nextByte = nextByte + plusone;
-//              plusone++;
-                spi_send_byte(0x00, nextByte);
-//              delay(10); //might remove this when going higher freq
-                Packet_Byte_Count++;
-            }
-            else {
-                spi_send_byte(0x00, Redundancy); //byte Packetaddm1
-                spi_send_byte(0x00, (unsigned int) Image_Packet_Count); //byte Packetaddlast
-                Redundancy++;
-                packetfinished = 1;
-                if (Redundancy == 1) {
-                    Image_Packet_Count++;
-                    Redundancy = 0;
-                }
-                else
-                    Buffer_Count = Buffer_Count - Packetaddm1; //0 to Packetaddm1
-                printf("Packet finished sending\n");
-                break;
-            }
-        }
-        else
-			break;
-    }
+void dio0interrupt () {   //Packet Sent Rising
+  printf("Running Dio0 interrupt\n");
+  printf("Packet SEnt interrupt\n");
+  delay(5000);
+  //write packet sent = 0;
+  break;
+  return;
 }
 void dio1interrupt () {   //FIFO Threshold FALLING
   printf("Running Dio1 interrupt\n");
@@ -226,13 +201,21 @@ void dio1interrupt () {   //FIFO Threshold FALLING
   arrangePacket();              //might have to disable interrupt here
   return;
 }
-void setInterrupts() {
+int setInterrupts() {
+  if (wiringPiISR (dio0pin, INT_EDGE_RISING, &dio0interrupt) < 0)
+  {
+    fprintf (stderr, "Unable to setup ISR: %s\n", strerror (errno)) ;
+    return 1 ;
+  }
   if (wiringPiISR (dio1pin, INT_EDGE_FALLING, &dio1interrupt) < 0)
   {
     fprintf (stderr, "Unable to setup ISR: %s\n", strerror (errno)) ;
     return 1 ;
   }
+  else
+    return 0;
   printf("Interrupts set up\n");
+  
 }
 void setMode(uint8_t newMode)
 {
@@ -341,9 +324,9 @@ void Transmitter_Startup()
   spi_send_byte(REG_SYNCVALUE7, 0x8E);
   spi_send_byte(REG_SYNCVALUE8, 0x9F);
   spi_send_byte(REG_PACKETCONFIG1, 0x50);
-  spi_send_byte(REG_PACKETCONFIG2, 0x40);
-  spi_send_byte(REG_PAYLOADLENGTH, 0x40); //FF
-  spi_send_byte(REG_FIFOTHRESH, 0x85); //10000101
+  spi_send_byte(REG_PACKETCONFIG2, 0x41);
+  spi_send_byte(REG_PAYLOADLENGTH, 0x00); //FF
+  spi_send_byte(REG_FIFOTHRESH, 0x8A); //10000101
   spi_send_byte(REG_IMAGECAL, 0xC2); 
   spi_send_byte(REG_DIOMAPPING1, 0x00); //00000000
   spi_send_byte(REG_DIOMAPPING2, 0x31); //00110001
@@ -353,12 +336,67 @@ void Transmitter_Startup()
   //printf(digitalRead(dio0pin));   //check these values   
   return;
 }
-  
+void arrangePacket() {
+    while (digitalRead(dio2pin) == 0) { //while Fifo isnt full
+//      delay(100);
+        if (Image_Packet_Count <= max_Image_Packet_Count) { //cause of residual bytes
+//            if (Packet_Byte_Count < Packetaddm1) { //push it in || max = PacketSize    
+                nextByte = getByte();
+                printf("This is byte %d ------- ", Packet_Byte_Count);
+//              if (Packet_Byte_Count == Packetaddm1)
+//                  nextByte = nextByte + plusone;
+//              plusone++;
+                spi_send_byte(0x00, nextByte);
+//              delay(10); //might remove this when going higher freq
+                Packet_Byte_Count++;
+            }
+    /*        else {
+                spi_send_byte(0x00, Redundancy); //byte Packetaddm1
+                spi_send_byte(0x00, (unsigned int) Image_Packet_Count); //byte Packetaddlast
+                Redundancy++;
+                packetfinished = 1;
+                if (Redundancy == 1) {
+                    Image_Packet_Count++;
+                    Redundancy = 0;
+                }
+                else
+                    Buffer_Count = Buffer_Count - Packetaddm1; //0 to Packetaddm1
+                printf("Packet finished sending\n");
+                break;
+            }
+        }
+        else
+			break;
+    */	
+		}
+	}
+	*/
+}  
 void Tx() {
   
-  
+	// while packet sent = 0 then
+		// //prefill the fifo until fifo is full
+		
+		// if fifo is empty or below threshold, interrupt will kick in to fill. if not
+			// arrangePacket();
+	// }
+	// if packet sent then
+		// reset buffer and prep to take next picture
+	
+	while (digitalRead(dio0pin) == 1) {
+		if ((digitalRead(dio3pin) == 1) && (digitalRead(dio1pin) == 0)) {
+			arrangePacket();
+		}
+	}
+	
+	if (digitalRead(dio0pin) == 1) {
+		Serial.println("SIAOLIAO NEXT PICTURE");
+	}
+	
+		
+			
   //dio2pin = FIFO FULL //dio0pin packet sent //dio1pin Fifo Threshold //dio3pin fifioempty
-  if ((digitalRead(dio2pin) == 1) && (digitalRead(dio0pin) == 1)) 
+  /*if ((digitalRead(dio2pin) == 1) && (digitalRead(dio0pin) == 1)) 
     state = 1;  //FIFO full and packet sent
   else if ((digitalRead(dio2pin) == 1) && (digitalRead(dio0pin) == 0)) 
     state = 2;  //FIFO full and packet not sent
@@ -455,6 +493,7 @@ void Tx() {
     printf("state transition from 8 to 3\n");
     break;  
   }
+  */
 }
 int setRFM98W(void)
 {
@@ -500,23 +539,6 @@ void prepBuffer() {
     max_Image_Packet_Count = lSize/Packetaddm1; //256
     return;
 }
-void takingPicture() { //Use system commands to do that.
-    char raspistring[200]; //im avoiding overwriting other data as this string is long
-    sprintf(imagename,  "Stillpic%s.jpg", GPS_Time);
-    printf("TakingPichere\n");
-	printf("New File name is : Stillpic%s.jpg\n", GPS_Time);
-    sprintf(raspistring, "raspistill -w 640 -h 480 -th none -e jpg -o %s -q 10 -x GPS.GPSAltitude=%d/10 -x GPS.GPSAltitudeRef=%d -x GPS.GPSLongitude=%d/1,%d/1,%.0f/1 -x GPS.GPSLongitudeRef=%c -x GPS.GPSLatitude=%d/1,%d/1,%.0f/1 -x GPS.GPSLatitudeRef=%c", imagename, GPS_Altitude, GPS_AltitudeSign, GPS_Longitude_Degrees, long_minute, long_second, *GPS_LongitudeSign, GPS_Latitude_Degrees, lat_minute, lat_second, *GPS_LatitudeSign);
-    //system("mkdir BalloonCamera"); 																//check whether the altitude need to divide by 10    
-    //system("cd BalloonCamera");                                         //doesnt work somehow
-    system(raspistring); //"raspistill -w 800 -h 600 -e jpg -o Stillpic.jpg -q 10"
-    prepBuffer();
-    //system("cd");
-    printf("finished");
-    return;
-}
-void setPicture() {
-    takingPicture();
-}
 void setup() {
   setRFM98W();
 }
@@ -528,17 +550,21 @@ int main(void) { //int argc, char *argv[]
     //takingPicture(); //fork out this command
     setup();
 	//exit as standby
-	setPicture(); //GotGPSThisSentence
+	prepBuffer(); //GotGPSThisSentence
+	arrangePacket();
 	setMode(RFM98_MODE_FSTX);
 	setMode(RFM98_MODE_TX);
     while (1){
 		if (newimage == 1) {			
 			newimage = 0;
-			sendInitialisingBits();
-			delay(200);
+//			sendInitialisingBits();
+//			delay(200);
+			setMode(RFM98_MODE_FSTX);
+			setMode(RFM98_MODE_TX);
 		}
 		else
-			Tx();   
+			Tx();
+			newimage = 1;
     }
     return 0;
 }
