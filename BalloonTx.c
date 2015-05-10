@@ -341,9 +341,9 @@ void sendInitialisingBits() { //send initial sequence including
 		
 		//GPS
 		//Time
-		spi_send_byte(0x00, (uint8_t) ((GPS_Time[0]-'0')<<4 | (GPS_Time[1]-'0'));
-		spi_send_byte(0x00, (uint8_t) ((GPS_Time[2]-'0')<<4 | (GPS_Time[3]-'0'));
-		spi_send_byte(0x00, (uint8_t) ((GPS_Time[4]-'0')<<4 | (GPS_Time[5]-'0'));
+		spi_send_byte(0x00, (uint8_t) ((GPS_Time[0]-'0')<<4 | (GPS_Time[1]-'0')));
+		spi_send_byte(0x00, (uint8_t) ((GPS_Time[2]-'0')<<4 | (GPS_Time[3]-'0')));
+		spi_send_byte(0x00, (uint8_t) ((GPS_Time[4]-'0')<<4 | (GPS_Time[5]-'0')));
 		
 		//Latitude
 		if (*GPS_LatitudeSign == 'N')
@@ -385,7 +385,7 @@ void sendInitialisingBits() { //send initial sequence including
         break;
 		
     }
-	Image_Packet_Count = max_Image_Packet_Count - 2;
+//	Image_Packet_Count = max_Image_Packet_Count - 2;
     return;
 }  
 void sendEndImagePacket () {
