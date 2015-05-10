@@ -388,6 +388,7 @@ void sendInitialisingBits() { //send initial sequence including
 //	Image_Packet_Count = max_Image_Packet_Count - 2;
     return;
 }  
+	
 void sendEndImagePacket () {
     int endpackcount = 0;
     uint8_t endoutput;
@@ -856,6 +857,7 @@ void setup() {
   setRFM98W();
   printf("Setup Complete\n");
 }
+
 int main(void) { //int argc, char *argv[]
     int newimage = 1;
     if ( wiringPiSetup () < 0 ) //Setup WiringPi
