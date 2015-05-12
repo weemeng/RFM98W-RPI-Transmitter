@@ -145,6 +145,8 @@ unsigned int GPS_Satellites=0;
 char Hex[] = "0123456789ABCDEF";
 int lat_minute=0, long_minute=0;
 double lat_second=0, long_second=0;
+
+unsigned int promptdatapacket = 0;
   
 int Message[31] = {0x12345678,
 					0x9ABCDEF1,
@@ -321,7 +323,7 @@ void SetFSKMod()
   return;
 }
 void sendInitialisingBits() { //send initial sequence including 
-    int used = 25, fill;
+    int used = 28, fill; //used+1
 	printf("GOT HERE!!!\n");
     while (digitalRead(dio2pin) == 0) { //while Fifo isnt full
         //byte padding for recognition at receiver
@@ -386,6 +388,9 @@ void sendInitialisingBits() { //send initial sequence including
 		
     }
 //	Image_Packet_Count = max_Image_Packet_Count - 2;
+	setMode(RFM98_MODE_FSTX);
+	setMode(RFM98_MODE_TX);
+	delay(200);
     return;
 }  
 	
@@ -433,7 +438,7 @@ void Transmitter_Startup()
   //transmitter settings
   spi_send_byte(REG_PACONFIG, 0xCF);
   spi_send_byte(REG_PARAMP, 0x29);
-  spi_send_byte(REG_OCP, 0x2B);
+  spi_send_byte(REG_OCP, 0x2B);//00101011 change to 3B
     
   //receiver settings
 /*  spi_send_byte(REG_LNA, 0xC0);
@@ -524,7 +529,14 @@ void Tx() {
   case 4:
     printf("Case 4 Triggered\n");
     if (packetfinished == 0) { //assuming arrangePacket will fill the buffer to PacketSize though this shouldn't matter as it will change state in the next loop.
-        arrangePacket();
+        if ((Image_Packet_Count%10 == 0) && (promptdatapacket == 0)) {
+			sendInitialisingBits();
+			promptdatapacket = 1;
+		}
+		else {
+			arrangePacket();
+			promptdatapacket = 0;
+		}
         state = 2; //tentatively should go to 2 but can go to 5
         printf("state transition from 4 to 2\n");
     }
@@ -872,9 +884,7 @@ int main(void) { //int argc, char *argv[]
 			newimage = 0;
 			printf("SETPICTURE");
 			sendInitialisingBits();
-			setMode(RFM98_MODE_FSTX);
-			setMode(RFM98_MODE_TX);
-			delay(200);
+
 		}
 		else {
 			Tx();   
